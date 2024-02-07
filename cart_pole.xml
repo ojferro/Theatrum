@@ -1,0 +1,110 @@
+<mujoco>
+  <!-- This file specifies things in degrees. The code/simulator uses radians -->
+  <compiler autolimits="true" angle="degree"/>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".9 .9 .9" rgb2=".95 .95 .95"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".05"/>
+    <mesh name="chasis" scale=".01 .006 .0015"
+      vertex=" 9   2   0
+              -10  10  10
+               9  -2   0
+               10  3  -10
+               10 -3  -10
+              -8   10 -10
+              -10 -10  10
+              -8  -10 -10
+              -5   0   20"/>
+  </asset>
+
+  <visual>
+    <headlight ambient=".6 .6 .6" specular=".1 .1 .1" />
+    <!-- <headlight diffuse=".1 .1 .1" /> -->
+    <!-- <headlight specular=".1 .1 .1"/> -->
+  </visual>
+
+  <option timestep="0.001" integrator="RK4"/>
+
+  <default>
+    <geom rgba="1. 1. 1. 1."/>
+    <joint damping=".01"/>
+    <default class="wheel">
+      <geom type="cylinder" size=".03 .01"/>
+    </default>
+    <default class="decor">
+      <site type="box"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <geom type="plane" size="50 50 .01" material="grid"/>
+    <body name="car" pos="0 0 .03" euler="0 -0.5 0">
+        <freejoint/>
+        <!-- <light name="top light" pos="0 0 2" mode="trackcom"/> -->
+        <!-- <geom name="chasis" type="mesh" mesh="chasis" rgba="1 0 0 1"/> -->
+        <!-- <geom name="front wheel" pos=".08 0 -.015" type="sphere" size=".015" condim="1" priority="1"/> -->
+        <!-- <light name="front light" pos=".1 0 .02" dir="2 0 -1" diffuse="1 1 1"/> -->
+        <body name="left wheel" pos=".0 .03 0" zaxis="0 1 0">
+            <joint name="left"/>
+            <geom class="wheel" mass="0.01"/>
+            <site class="decor" size=".006 .025 .012"/>
+            <site class="decor" size=".025 .006 .012"/>
+        </body>
+        <body name="right wheel" pos=".0 -.03 0" zaxis="0 1 0">
+            <joint name="right"/>
+            <site name="torque_sensor_mnt" pos="0 0 0"/>
+            <geom class="wheel" mass="0.01"/>
+            <site class="decor" size=".006 .025 .012"/>
+            <site class="decor" size=".025 .006 .012"/>
+        </body>
+
+        <site name="wheelbase" pos="0 0 0"/>
+
+        <body name="beam" pos="0 0 .4">
+            <!--density of the rod is ten times smaller than other objects (e.g. the ball) for a better point mass approximation-->
+            <!-- <geom name="rod" type="cylinder" pos="0 0 0.0" size=".01 .2" density="100" rgba ="1 0. 0. 1"/> -->
+            <geom name="legL" pos="0 0.03 -.1" type="capsule" size=".01 .25" mass="0.01" density="1"/>
+            <geom name="legR" pos="0 -0.03 -.1" type="capsule" size=".01 .25" mass="0.01" density="1"/>
+            <!-- <joint name="pivot" pos="0 0 -0.4" axis="0 1 0" limited="false" damping=".05"/> -->
+            <!-- <site name="rBeam" pos="0 -.8 -.1"/> -->
+            <!-- <site name="lBeam" pos="0 .8 -.1"/> -->
+            <body name="ballbody" pos="0 0 0.1">
+                <site name="accelerometer_center" pos="0 0 0" rgba="0. 1. 0. 1."/>
+                <geom name="ballgeom" type="sphere" size=".1" mass="3"/>
+            </body>
+        </body>
+      
+    </body>
+  </worldbody>
+
+  <tendon>
+    <fixed name="forward">
+      <joint joint="left" coef="1"/>
+      <joint joint="right" coef="1"/>
+    </fixed>
+    <!-- <fixed name="pivot">
+      <joint joint="pivot" coef=".5"/>
+    </fixed> -->
+    <fixed name="turn">
+      <joint joint="left" coef="-.5"/>
+      <joint joint="right" coef=".5"/>
+    </fixed>
+  </tendon>
+
+  <actuator>
+    <motor name="forward" tendon="forward" ctrlrange="-100 100"/>
+    <!-- <motor name="pivot" tendon="pivot" ctrlrange="-1 1"/> -->
+    <!-- <motor name="turn" tendon="turn" ctrlrange="-1 1"/> -->
+  </actuator>
+
+  <sensor>
+    <!-- <jointactuatorfrc name="right" joint="right"/>
+    <jointactuatorfrc name="left" joint="left"/> -->
+    <accelerometer name="accelerometer" site="accelerometer_center" noise="0.0"/>
+    <framepos name="base_position" objtype="site" objname="wheelbase"/>
+    <framelinvel name="base_velocity" objtype="site" objname="wheelbase"/>
+    <frameangvel name="base_ang_velocity" objtype="site" objname="accelerometer_center"/>
+    <torque name="wheel_torque" site="torque_sensor_mnt"/>
+    <jointvel name="wheel_vel" joint="right"/>
+  </sensor>
+</mujoco>

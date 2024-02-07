@@ -1,0 +1,63 @@
+<mujoco model="MuJoCo Model">
+  <compiler angle="radian" autolimits="true"/>
+  <option integrator="RK4"/>
+  <statistic meansize="0.110066" extent="10" center="0 0 0"/>
+  <default class="main">
+    <joint damping="0.01"/>
+    <default class="wheel">
+      <geom size="0.03 0.01 0" type="cylinder" rgba="0.5 0.5 1 1"/>
+    </default>
+    <default class="decor">
+      <site type="box" rgba="0.5 1 0.5 1"/>
+    </default>
+  </default>
+  <asset>
+    <texture type="2d" name="grid" builtin="checker" rgb1="0.1 0.2 0.3" rgb2="0.2 0.3 0.4" width="512" height="512"/>
+    <material name="grid" texture="grid" texuniform="true" reflectance="0.2"/>
+    <mesh name="chasis" vertex="9 2 0 -10 10 10 9 -2 0 10 3 -10 10 -3 -10 -8 10 -10 -10 -10 10 -8 -10 -10 -5 0 20" scale="0.01 0.006 0.0015"/>
+  </asset>
+  <worldbody>
+    <geom size="50 50 0.01" type="plane" material="grid"/>
+    <body name="car" pos="0 0 0.03">
+      <joint type="free" damping="0"/>
+      <light name="top light" pos="0 0 2" dir="0 0 -1" diffuse="1 1 1" mode="trackcom"/>
+      <light name="front light" pos="0.1 0 0.02" dir="0.894427 0 -0.447214" diffuse="1 1 1"/>
+      <body name="left wheel" pos="0 0.06 0" quat="0.707107 -0.707107 0 0">
+        <joint name="left" pos="0 0 0" axis="0 0 1"/>
+        <geom class="wheel" density="10000"/>
+        <site class="decor" pos="0 0 0" size="0.006 0.025 0.012"/>
+        <site class="decor" pos="0 0 0" size="0.025 0.006 0.012"/>
+      </body>
+      <body name="right wheel" pos="0 -0.06 0" quat="0.707107 -0.707107 0 0">
+        <joint name="right" pos="0 0 0" axis="0 0 1"/>
+        <geom class="wheel" density="10000"/>
+        <site class="decor" pos="0 0 0" size="0.006 0.025 0.012"/>
+        <site class="decor" pos="0 0 0" size="0.025 0.006 0.012"/>
+      </body>
+      <body name="beam" pos="0 0 0.4">
+        <geom name="legL" size="0.01 0.25" pos="0 0.06 -0.1" type="capsule" density="100"/>
+        <geom name="legR" size="0.01 0.25" pos="0 -0.06 -0.1" type="capsule" density="100"/>
+        <body name="ballbody" pos="0 0 0.1">
+          <geom name="ballgeom" size="0.1" rgba="1 0 0 0.2"/>
+          <site name="accelerometer_center" pos="0 0 0" rgba="0 1 0 1"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <tendon>
+    <fixed name="forward">
+      <joint joint="left" coef="0.5"/>
+      <joint joint="right" coef="0.5"/>
+    </fixed>
+    <fixed name="turn">
+      <joint joint="left" coef="-0.5"/>
+      <joint joint="right" coef="0.5"/>
+    </fixed>
+  </tendon>
+  <actuator>
+    <general name="forward" tendon="forward" ctrlrange="-1 1"/>
+  </actuator>
+  <sensor>
+    <accelerometer site="accelerometer_center" name="accelerometer" noise="0.001"/>
+  </sensor>
+</mujoco>

@@ -1,0 +1,80 @@
+Sat Sep 16 21:53:16 2023
+ERROR: Load model error: XML Error: Unrecognized XML model type: 'worldbody'
+
+Sat Sep 16 21:53:48 2023
+ERROR: Load model error: XML parse error 14:
+Error=XML_ERROR_MISMATCHED_ELEMENT ErrorID=14 (0xe) Line number=27: XMLElement name=mujoco
+
+
+Sat Sep 16 21:54:01 2023
+ERROR: Load model error: XML parse error 14:
+Error=XML_ERROR_MISMATCHED_ELEMENT ErrorID=14 (0xe) Line number=27: XMLElement name=mujoco
+
+
+Sat Sep 16 21:59:30 2023
+ERROR: Load model error: Error: fromto requires capsule, cylinder, box or ellipsoid in geom '' (id = 0)
+Object name = , id = 0, line = 14, column = -1
+
+Mon Oct  2 19:10:28 2023
+WARNING: mju_openResource: unknown file '/path/to/mjcf.xml'
+
+Mon Oct  2 19:18:09 2023
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 8.1220.
+
+Mon Oct  2 19:18:16 2023
+WARNING: Nan, Inf or huge value in QACC at DOF 5. The simulation is unstable. Time = 1.4520.
+
+Mon Oct  2 19:22:39 2023
+WARNING: Nan, Inf or huge value in QACC at DOF 3. The simulation is unstable. Time = 6.4500.
+
+Mon Oct  2 19:27:59 2023
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 4.9840.
+
+Mon Oct  2 19:31:52 2023
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 2.9020.
+
+Mon Oct  2 19:32:34 2023
+WARNING: Nan, Inf or huge value in QACC at DOF 3. The simulation is unstable. Time = 2.7100.
+
+Mon Oct  2 20:29:49 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Mon Oct  2 20:36:10 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Mon Oct  2 20:38:39 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Mon Oct  2 20:49:08 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Mon Oct  2 23:05:09 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Mon Oct  2 23:06:27 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Tue Oct  3 00:46:53 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Tue Oct  3 01:23:53 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Tue Oct  3 01:42:13 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Tue Oct  3 18:31:33 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Sun Oct  8 22:38:58 2023
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 13.5980.
+
+Sun Oct  8 22:55:41 2023
+WARNING: Nan, Inf or huge value in QACC at DOF 0. The simulation is unstable. Time = 22.0460.
+
+Sun Oct  8 23:10:26 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
+Tue Oct 10 01:45:43 2023
+ERROR: mjv_updateSceneState: m->nu changed
+
