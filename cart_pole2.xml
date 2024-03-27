@@ -28,7 +28,7 @@
 
   <default>
     <geom rgba="1. 1. 1. 1."/>
-    <!-- <joint damping=".0001"/> -->
+    <joint damping=".0001"/>
     <default class="wheel">
       <geom type="cylinder" size=".03 .01"/>
     </default>
@@ -39,26 +39,19 @@
 
   <worldbody>
     <geom type="plane" size="50 50 .01" material="grid"/>
-    <body name="pendulum" pos="-1 0 .03" euler="0 0 0">
-
+    <body name="car" pos="0 0 .03" euler="0 -0.5 0">
         <freejoint/>
-        <!-- <joint type="hinge" pos="0 0 0.25" axis="0 1 0" limited="false"/> -->
-        <geom name="ballgeom" type="box" pos="0 0 0.25" size=".001 .001 .001" mass="3" rgba="1.0 .2 .2 1"/>
-        <!-- <body name="ballbody" pos="0 0 0"> -->
-        <site name="accelerometer_center" pos="0 0 0" rgba="0. 1. 0. 0.1"/>
-        <!-- <freejoint/> -->
         <!-- <light name="top light" pos="0 0 2" mode="trackcom"/> -->
         <!-- <geom name="chasis" type="mesh" mesh="chasis" rgba="1 0 0 1"/> -->
         <!-- <geom name="front wheel" pos=".08 0 -.015" type="sphere" size=".015" condim="1" priority="1"/> -->
         <!-- <light name="front light" pos=".1 0 .02" dir="2 0 -1" diffuse="1 1 1"/> -->
-        <body name="leftwheel" pos=".0 .03 0" zaxis="0 1 0">
+        <body name="left wheel" pos=".0 .03 0" zaxis="0 1 0">
             <joint name="left"/>
             <geom class="wheel" mass="0.25"/>
             <site class="decor" size=".006 .025 .012"/>
             <site class="decor" size=".025 .006 .012"/>
         </body>
-
-        <body name="rightwheel" pos=".0 -.03 0" zaxis="0 1 0">
+        <body name="right wheel" pos=".0 -.03 0" zaxis="0 1 0">
             <joint name="right"/>
             <site name="torque_sensor_mnt" pos="0 0 0"/>
             <geom class="wheel" mass="0.25"/>
@@ -68,43 +61,38 @@
 
         <site name="wheelbase" pos="0 0 0"/>
 
-        <!-- <body name="beam" pos="0 0 0.25"> -->
+        <body name="beam" pos="0 0 .4">
             <!--density of the rod is ten times smaller than other objects (e.g. the ball) for a better point mass approximation-->
             <!-- <geom name="rod" type="cylinder" pos="0 0 0.0" size=".01 .2" density="100" rgba ="1 0. 0. 1"/> -->
-            
+            <geom name="rod" pos="0 0.0 -0.1" type="capsule" size=".01 .25" mass="3.0"/>
+            <!-- <geom name="legR" pos="0 -0.03 -.1" type="capsule" size=".01 .25" mass="0.0001"/> -->
             <!-- <joint name="pivot" pos="0 0 -0.4" axis="0 1 0" limited="false" damping=".05"/> -->
             <!-- <site name="rBeam" pos="0 -.8 -.1"/> -->
             <!-- <site name="lBeam" pos="0 .8 -.1"/> -->
-            <!-- <joint name="pivot"/> -->
-            <!-- <geom name="ballgeom" type="box" size=".001 .001 .001" mass="3" rgba="1.0 .2 .2 1"/> -->
-            <!-- <body name="ballbody" pos="0 0 0"> -->
-            <!-- <site name="accelerometer_center" pos="0 0 0" rgba="0. 1. 0. 0.1"/> -->
-                <!-- <geom name="ballgeom" type="box" size=".01 .01 .01" mass="3" rgba="1.0 .2 .2 1"/> -->
-            <!-- </body> -->
-        <!-- </body> -->
+            <body name="ballbody" pos="0 0 0.1">
+                <site name="accelerometer_center" pos="0 0 0" rgba="0. 1. 0. 1."/>
+            </body>
+        </body>
       
     </body>
   </worldbody>
 
-  <!-- <tendon fromto="pendulum leftwheel"> -->
-    <!-- <fixed name="forward">
+  <tendon>
+    <fixed name="forward">
       <joint joint="left" coef="1"/>
       <joint joint="right" coef="1"/>
-    </fixed> -->
+    </fixed>
     <!-- <fixed name="pivot">
       <joint joint="pivot" coef=".5"/>
     </fixed> -->
-    <!-- <fixed name="turn">
+    <fixed name="turn">
       <joint joint="left" coef="-.5"/>
       <joint joint="right" coef=".5"/>
-    </fixed> -->
-  <!-- </tendon> -->
+    </fixed>
+  </tendon>
 
   <actuator>
-    <!-- <motor name="forward" tendon="forward" ctrlrange="-100 100"/> -->
-    <motor name="forward_left" joint="left" gear="1"/>
-    <motor name="forward_right" joint="right" gear="1"/>
-    <!-- <motor name="forward" joint="left" gear="1"/> -->
+    <motor name="forward" tendon="forward" ctrlrange="-100 100"/>
     <!-- <motor name="pivot" tendon="pivot" ctrlrange="-1 1"/> -->
     <!-- <motor name="turn" tendon="turn" ctrlrange="-1 1"/> -->
   </actuator>
@@ -114,7 +102,7 @@
     <jointactuatorfrc name="left" joint="left"/> -->
     <accelerometer name="accelerometer" site="accelerometer_center" noise="0.0"/>
     <!-- <angle name="angle_sensor" body1="ballbody" body2="world"/> -->
-    <framequat name="angle_sensor" objtype="site" objname="wheelbase"/>
+    <framequat name="angle_sensor" objtype="site" objname="accelerometer_center"/>
     <framepos name="base_position" objtype="site" objname="wheelbase"/>
     <framelinvel name="base_velocity" objtype="site" objname="wheelbase"/>
     <frameangvel name="base_ang_velocity" objtype="site" objname="accelerometer_center"/>

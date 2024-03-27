@@ -15,21 +15,6 @@ g = 9.81
 
 state = ['x','theta', 'x_dot', 'theta_dot']
 
-# Constants
-# gamma = (3*m+2*M)/3*m
-# phi = 1/(3*L*m/2 + M*L) + 1/(M*L**2)
-
-# c1 = M*gamma*g/(3*m/2 + M)
-# c2 = (L*gamma*phi - 1/r) / (3*m/2 + M)
-# c3 = gamma * g/L
-# c4 = gamma * phi
-
-# A = np.array([[0, 0, 1, 0],
-#               [0, 0, 0, 1],
-#               [0, c1, 0, 0],
-#               [0, c3, 0, 0]])
-# B = np.array([[0], [0], [c2], [c4]])
-
 m_c = 1.5
 m_p = 0.5
 g = 9.81
@@ -46,12 +31,12 @@ B = np.array([[0],[0], [1/m_c], [1/(L*m_c)]])
 
 print("Eigenvalues of Plant: ", np.linalg.eig(A)[0])
 
-Q = np.identity(4)
-# Q[0,0] = 0.01
-# Q[1,1] = 1.0
-# Q[2,2] = 0.01
-# Q[3,3] = 0.01
-R = np.identity(1)
+Q = np.identity(4)*0.01
+Q[0,0] = 100.0
+Q[1,1] = 10.0
+Q[2,2] *= 0.01
+Q[3,3] *= 0.01
+R = np.identity(1) * 0.1
 
 K, S, E = ct.lqr(A, B, Q, R)
 
@@ -74,7 +59,7 @@ sys = StateSpace(A-B*K, B, C, D)
 
 plt.figure(figsize=(8, 8))
 
-y, t = mt.step(sys)
+y, t = mt.impulse(sys)
 for i in range(4):
     plt.subplot(2, 2, i+1)
     plt.plot(t.T, y[:,i,0].T)
@@ -127,11 +112,3 @@ plt.tight_layout()
 # print(y[:,i,0])
 
 plt.show()
-
-
-
-
-
-
-if 'PYCONTROL_TEST_EXAMPLES' not in os.environ:
-    plt.show()
