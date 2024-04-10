@@ -75,6 +75,7 @@ class LQR:
 m = mujoco.MjModel.from_xml_path('./cart_pole.xml')
 d = mujoco.MjData(m)
 
+EPISODE_LENGTH_S = 6.0
 # print(f"Timestep {m.opt.timestep}")
 
 controller = LQR()
@@ -88,22 +89,42 @@ theta_dbg = np.array([])
 x_dot_dbg = np.array([])
 theta_dot_dbg = np.array([])
 
-ctr = 0
-step_start = time.time_ns()
+renderer_fps = 25
+simulation_timestep = m.opt.timestep
+
+# Pick the fps that most closely matches a multiple of the simulation timestep. This facilitates the "realtime rendering" logic
+renderer_fps = 1/(round((1/renderer_fps)/simulation_timestep) * simulation_timestep)
+physics_updates_per_frame = int((1.0/renderer_fps)/simulation_timestep)
+
+print(f"Running simulation at:\n    {renderer_fps} fps \n    {simulation_timestep} physics timestep.")
+print(f"    {physics_updates_per_frame} physics updates per rendered frame.")
+
+debug_ctr = 0
 with mujoco.viewer.launch_passive(m, d) as viewer:
-    sim_start_time = time.time()
-    while viewer.is_running() and d.time < 6.0:
+    prev_iteration_time = 0 # Don't initialize to current time. The delta used for realtime factor might cause a DIV0 error
+    sim_start_time = time.monotonic()
+    while viewer.is_running() and d.time < EPISODE_LENGTH_S:
+        
+        # This must be the first thing in the loop. Every single computation from here on will eat into the delta time between frames.
+        next_frame_at = time.time_ns() + (1/renderer_fps) * 1_000_000_000
 
-        ctr += 1
+        realtime_factor = ((1/renderer_fps * 1_000_000_000)/(time.time_ns()-prev_iteration_time))
+        print(f"{realtime_factor:.2f}X realtime.", end="\r")
+        prev_iteration_time = time.time_ns()
 
-        mujoco.mj_step(m, d)
+        # Perform only as many physics steps are would fit in the time between frames
+        # If performing more than this, it would appear as if the simulation were sped up
+        for _ in range(physics_updates_per_frame):
+            mujoco.mj_step(m, d)
+            debug_ctr += 1
 
-        angle = quaternion_to_euler(d.sensor('angle_sensor').data)[1]
-        controller.step(angle, d.sensor('base_position'), d.sensor('base_velocity'), d.sensor('base_ang_velocity'))
+            angle = quaternion_to_euler(d.sensor('angle_sensor').data)[1]
+            controller.step(angle, d.sensor('base_position'), d.sensor('base_velocity'), d.sensor('base_ang_velocity'))
 
+        # Terminate episode if max angle exceeded
         if abs(angle) > 15.0*np.pi/180.0:
             print("15 deg angle exceeded. Terminating...")
-            # break
+            break
 
         times_dbg = np.append(times_dbg, d.time)
         qvels_dbg = np.append(qvels_dbg, d.qvel[-1])
@@ -113,24 +134,26 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
         x_dot_dbg = np.append(x_dot_dbg, controller.state_dbg[2])
         theta_dot_dbg = np.append(theta_dot_dbg, controller.state_dbg[3])
 
-        # Example modification of a viewer option: toggle contact points every two seconds.
+        # The last thing that should happen is the rendering. Anything else will eat into the delta time between frames.
         with viewer.lock():
+            # Pick up changes to the physics state, apply perturbations, update options from GUI.
+            # Keep the camera pointed at the base of the robot
             viewer.cam.lookat = d.sensor('base_position').data
 
-        # Pick up changes to the physics state, apply perturbations, update options from GUI.
-        viewer.sync()
+            # Render frame
+            viewer.sync()
 
-        # Rudimentary time keeping, will drift relative to wall clock.
-        time_until_next_step = m.opt.timestep*(10**9) - (time.time_ns() - step_start)
-        if time_until_next_step > 0:
-            time.sleep(time_until_next_step/(10**9))
+            if time.time_ns() > next_frame_at:
+                print("\n\nWARNING: Renderer fps missed. Iteration time too long.")
+                continue
 
-        step_start = time.time_ns()
+            while time.time_ns() < next_frame_at:    
+                continue # Busy wait. This is much better for timing than time.sleep(), which is not precise.
 
 
-sim_end_time = time.time()
-print(f"Simulation time: {sim_end_time - sim_start_time}")
-
+sim_end_time = time.monotonic()
+print(f"Simulation wallclock time: {sim_end_time - sim_start_time:.3f} s")
+print(f"Simulation physics time: {m.opt.timestep * debug_ctr:.3f} s")
 
 # Visualize data at the end of the run
 print("Showing plots...")
