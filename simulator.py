@@ -32,7 +32,8 @@ def quaternion_to_euler(q):
 
 class LQR:
     # K = np.array([[-1,	-1.5512,	6.9235,	1.5845]])
-    K = np.array([[-31.6227766 , 162.92827674, -30.40599676,  50.15742702]])
+    # K = np.array([[-31.6227766 , 162.92827674, -30.40599676,  50.15742702]])
+    K = np.array([[-100.        ,  346.86699245,  -81.69049517,  108.76436008]])
 
     dt = 0.001
     prev_time = time.time()
@@ -103,14 +104,14 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
 
         if abs(angle) > 15.0*np.pi/180.0:
             print("15 deg angle exceeded. Terminating...")
-            # break
+            break
 
-        times_dbg = np.append(times_dbg, d.time)
-        qvels_dbg = np.append(qvels_dbg, d.qvel[-1])
-        ctrls_dbg = np.append(ctrls_dbg, d.ctrl[0])
-        x_dbg = np.append(x_dbg, controller.state_dbg[0])
-        theta_dbg = np.append(theta_dbg, controller.state_dbg[1])
-        x_dot_dbg = np.append(x_dot_dbg, controller.state_dbg[2])
+        times_dbg     = np.append(times_dbg, d.time)
+        qvels_dbg     = np.append(qvels_dbg, d.qvel[-1])
+        ctrls_dbg     = np.append(ctrls_dbg, d.ctrl[0])
+        x_dbg         = np.append(x_dbg, controller.state_dbg[0])
+        theta_dbg     = np.append(theta_dbg, controller.state_dbg[1])
+        x_dot_dbg     = np.append(x_dot_dbg, controller.state_dbg[2])
         theta_dot_dbg = np.append(theta_dot_dbg, controller.state_dbg[3])
 
         # Example modification of a viewer option: toggle contact points every two seconds.
