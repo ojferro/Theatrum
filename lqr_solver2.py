@@ -32,7 +32,7 @@ B = np.array([[0],[0], [1/m_c], [1/(L*m_c)]])
 print("Eigenvalues of Plant: ", np.linalg.eig(A)[0])
 
 Q = np.identity(4)*0.01
-Q[0,0] = 100.0
+Q[0,0] = 1000.0
 Q[1,1] = 10.0
 Q[2,2] *= 0.01
 Q[3,3] *= 0.01
