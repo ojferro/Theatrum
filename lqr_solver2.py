@@ -7,16 +7,16 @@ import os
 from matplotlib.animation import FuncAnimation
 
 
-M = 3.0
-m = .5
+M = 2.0
+m = 0.3
 L = 0.25
 r = 0.03
 g = 9.81
 
 state = ['x','theta', 'x_dot', 'theta_dot']
 
-m_c = 1.5
-m_p = 0.5
+m_c = 1.105 - 0.3
+m_p = 0.3
 g = 9.81
 L = 1
 d1 = 0.01
@@ -32,11 +32,11 @@ B = np.array([[0],[0], [1/m_c], [1/(L*m_c)]])
 print("Eigenvalues of Plant: ", np.linalg.eig(A)[0])
 
 Q = np.identity(4)*0.01
-Q[0,0] = 1000.0
-Q[1,1] = 10.0
+Q[0,0] = 1.0
+Q[1,1] = 1.0
 Q[2,2] *= 0.01
 Q[3,3] *= 0.01
-R = np.identity(1) * 0.1
+R = np.identity(1) * 10.0
 
 K, S, E = ct.lqr(A, B, Q, R)
 
@@ -59,7 +59,8 @@ sys = StateSpace(A-B*K, B, C, D)
 
 plt.figure(figsize=(8, 8))
 
-y, t = mt.impulse(sys)
+# y, t = mt.impulse(sys)
+y, t = mt.step(sys)
 for i in range(4):
     plt.subplot(2, 2, i+1)
     plt.plot(t.T, y[:,i,0].T)

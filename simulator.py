@@ -29,11 +29,19 @@ def quaternion_to_euler(q):
 
     return roll_x, pitch_y, yaw_z
 
+def calculate_angle_from_accelerometer(accelerometer_data):
+    # Extract components
+    x, _y, z = accelerometer_data
+
+    # Conversion
+    angle = np.arctan2(-x, z)
+    return angle
+
 
 class LQR:
     # K = np.array([[-1,	-1.5512,	6.9235,	1.5845]])
     # K = np.array([[-31.6227766 , 162.92827674, -30.40599676,  50.15742702]])
-    K = np.array([[-100.        ,  346.86699245,  -81.69049517,  108.76436008]])
+    K = np.array([[100.        ,  346.86699245,  -81.69049517,  108.76436008]])
 
     dt = 0.001
     prev_time = time.time()
@@ -44,7 +52,7 @@ class LQR:
         # For future reference: One of the things that was likely wrong was that the accelerometer to angle computation did not account for the linear accelerations
         # As such, the "angle" that I would compute would be wrong
 
-        x = -position_sensor.data[0]
+        x = position_sensor.data[0]
         x_dot = -velocity_sensor.data[0]
         theta = angle_sensor
         theta_dot = ang_velocity_sensor.data[1]
@@ -60,7 +68,7 @@ class LQR:
         #     return
         
         state = self.compute_state(angle_sensor, position_sensor, velocity_sensor, ang_velocity_sensor)
-        self.state_dbg = state
+        # self.state_dbg = state
         # u is a force
         u = np.matmul(self.K, state)
 
@@ -72,11 +80,17 @@ class LQR:
         d.ctrl[:] = uT/2
 
 
+        # Save state for debugging
+        self.state_dbg = state
+        self.state_dbg[1] *= 180/np.pi
+        self.state_dbg[3] *= 180/np.pi
+
+
 
 m = mujoco.MjModel.from_xml_path('./cart_pole.xml')
 d = mujoco.MjData(m)
 
-EPISODE_LENGTH_S = 6.0
+EPISODE_LENGTH_S = 10.0
 # print(f"Timestep {m.opt.timestep}")
 
 controller = LQR()
@@ -87,6 +101,7 @@ ctrls_dbg = np.array([])
 
 x_dbg = np.array([])
 theta_dbg = np.array([])
+accel_theta_dbg = np.array([])
 x_dot_dbg = np.array([])
 theta_dot_dbg = np.array([])
 
@@ -102,9 +117,13 @@ print(f"    {physics_updates_per_frame} physics updates per rendered frame.")
 
 debug_ctr = 0
 with mujoco.viewer.launch_passive(m, d) as viewer:
+    # time.sleep(1)
     prev_iteration_time = 0 # Don't initialize to current time. The delta used for realtime factor might cause a DIV0 error
     sim_start_time = time.monotonic()
+
     while viewer.is_running() and d.time < EPISODE_LENGTH_S:
+
+        # time.sleep(1)
         
         # This must be the first thing in the loop. Every single computation from here on will eat into the delta time between frames.
         next_frame_at = time.time_ns() + (1/renderer_fps) * 1_000_000_000
@@ -119,12 +138,15 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
             mujoco.mj_step(m, d)
             debug_ctr += 1
 
+            accel_angle = calculate_angle_from_accelerometer(d.sensor('accelerometer').data)
             angle = quaternion_to_euler(d.sensor('angle_sensor').data)[1]
+
+            # print(f"angle: {angle}, accel_angle: {accel_angle}")
             controller.step(angle, d.sensor('base_position'), d.sensor('base_velocity'), d.sensor('base_ang_velocity'))
 
         # Terminate episode if max angle exceeded
-        if abs(angle) > 15.0*np.pi/180.0:
-            print("15 deg angle exceeded. Terminating...")
+        if abs(angle) > 35.0*np.pi/180.0:
+            print("35 deg angle exceeded. Terminating...")
             break
 
         times_dbg     = np.append(times_dbg, d.time)
@@ -132,6 +154,7 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
         ctrls_dbg     = np.append(ctrls_dbg, d.ctrl[0])
         x_dbg         = np.append(x_dbg, controller.state_dbg[0])
         theta_dbg     = np.append(theta_dbg, controller.state_dbg[1])
+        accel_theta_dbg = np.append(accel_theta_dbg, accel_angle)
         x_dot_dbg     = np.append(x_dot_dbg, controller.state_dbg[2])
         theta_dot_dbg = np.append(theta_dot_dbg, controller.state_dbg[3])
 
@@ -139,6 +162,7 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
         with viewer.lock():
             # Pick up changes to the physics state, apply perturbations, update options from GUI.
             # Keep the camera pointed at the base of the robot
+            viewer.cam.azimuth= -90.0
             viewer.cam.lookat = d.sensor('base_position').data
 
             # Render frame
@@ -157,28 +181,33 @@ print(f"Simulation wallclock time: {sim_end_time - sim_start_time:.3f} s")
 print(f"Simulation physics time: {m.opt.timestep * debug_ctr:.3f} s")
 
 # Visualize data at the end of the run
-print("Showing plots...")
-fig, ax = plt.subplots(2, 3)
-stride = 1
 
-ax[0,0].plot(times_dbg[::stride], qvels_dbg[::stride])
-ax[0,0].legend(["Velocity"])
+if False:
+    print("Showing plots...")
+    fig, ax = plt.subplots(2, 3)
+    stride = 1
 
-ax[0,1].plot(times_dbg[::stride], ctrls_dbg[::stride])
-ax[0,1].legend(["Control"])
+    ax[0,0].plot(times_dbg[::stride], qvels_dbg[::stride])
+    ax[0,0].legend(["Velocity"])
 
-ax[0,2].plot(times_dbg[::stride], x_dbg[::stride])
-ax[0,2].legend(["X"])
+    ax[0,1].plot(times_dbg[::stride], ctrls_dbg[::stride])
+    ax[0,1].legend(["Control"])
 
-ax[1,0].plot(times_dbg[::stride], theta_dbg[::stride])
-ax[1,0].legend(["Theta"])
+    ax[0,2].plot(times_dbg[::stride], x_dbg[::stride])
+    ax[0,2].legend(["X"])
 
-ax[1,1].plot(times_dbg[::stride], x_dot_dbg[::stride])
-ax[1,1].legend(["X_dot"])
+    ax[1,0].plot(times_dbg[::stride], theta_dbg[::stride])
+    ax[1,0].legend(["Theta"])
 
-ax[1,2].plot(times_dbg[::stride], theta_dot_dbg[::stride])
-ax[1,2].legend(["Theta_dot"])
+    ax[1,0].plot(times_dbg[::stride], accel_theta_dbg[::stride])
+    ax[1,0].legend(["Accel Theta"])
 
-plt.show()
+    ax[1,1].plot(times_dbg[::stride], x_dot_dbg[::stride])
+    ax[1,1].legend(["X_dot"])
 
-print("Done plotting")
+    ax[1,2].plot(times_dbg[::stride], theta_dot_dbg[::stride])
+    ax[1,2].legend(["Theta_dot"])
+
+    plt.show()
+
+    print("Done plotting")

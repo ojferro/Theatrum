@@ -22,7 +22,7 @@
   </asset>
 
   <visual>
-    <headlight ambient="1 1 1" />
+    <headlight ambient="0.5 0.5 0.5" />
     
     <!-- <headlight diffuse=".1 .1 .1" /> -->
     <!-- <headlight specular=".1 .1 .1"/> -->
@@ -47,28 +47,30 @@
 
         <freejoint/>
         
-        <geom name="bodygeom" type="box" pos="0 0 0.25" size=".05 .05 .05" mass="3" rgba="0.9 0.9 0.9 1"/>
+        <!-- <geom name="bodygeom" type="box" pos="0 0 0.25" size=".05 .05 .05" mass="1.5" rgba="0.9 0.9 0.9 0.1"/> -->
         
         <site name="wheelbase" pos="0 0 0"/>
+        <site name="accel_site" pos="0 0 0.37"/>
+        <geom name="accel" type="box" pos="0 0 0.37" size=".01 .01 .01" mass="0" rgba="0.0 1.0 0.0 1.0"/>
 
-        <body name="leftwheel" pos=".0 .03 0" zaxis="0 1 0">
+        <body name="leftwheel" pos=".0 .06 0" zaxis="0 1 0">
             <joint name="left"/>
-            <geom class="wheel" mass="0.25"/>
+            <geom class="wheel" mass="0.150"/>
             <site class="decor" size=".006 .025 .012"/>
             <site class="decor" size=".025 .006 .012"/>
         </body>
 
-        <body name="rightwheel" pos=".0 -.03 0" zaxis="0 1 0">
+        <body name="rightwheel" pos=".0 -.06 0" zaxis="0 1 0">
             <joint name="right"/>
             <site name="torque_sensor_mnt" pos="0 0 0"/>
-            <geom class="wheel" mass="0.25"/>
+            <geom class="wheel" mass="0.150"/>
             <site class="decor" size=".006 .025 .012"/>
             <site class="decor" size=".025 .006 .012"/>
         </body>
 
         <body name="beam" pos="0 0 0.25">
-            <geom name="rod" type="cylinder" pos="0 0 -0.125" size=".01 .125" mass="0.1" rgba ="0.9 0.9 0.9 1"/>
-            <geom type="mesh" mesh="Basis_m" pos="0.03 0 0.15" size="0.01 0.01 0.01" mass="0"/>
+            <!-- <geom name="rod" type="cylinder" pos="0 0 -0.125" size=".01 .125" mass="0.1" rgba ="0.9 0.9 0.9 0.1"/> -->
+            <geom type="mesh" mesh="Basis_m" pos="0 0 0.033" size="0.01 0.01 0.01" euler="90 90 0" mass="0.810"/>
         </body>
       
     </body>
@@ -80,7 +82,7 @@
   </actuator>
 
   <sensor>
-    <accelerometer name="accelerometer" site="wheelbase" noise="0.0"/>
+    <accelerometer name="accelerometer" site="accel_site" noise="0.0"/>
     <framequat name="angle_sensor" objtype="site" objname="wheelbase"/>
     <framepos name="base_position" objtype="site" objname="wheelbase"/>
     <framelinvel name="base_velocity" objtype="site" objname="wheelbase"/>
