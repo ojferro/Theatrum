@@ -7,36 +7,38 @@ import os
 from matplotlib.animation import FuncAnimation
 
 
-M = 2.0
-m = 0.3
-L = 0.25
-r = 0.03
-g = 9.81
+# M = 2.0
+# m = 0.3
+# L = 0.25
+# r = 0.03
+# g = 9.81
 
 state = ['x','theta', 'x_dot', 'theta_dot']
 
-m_c = 1.105 - 0.3
-m_p = 0.3
+m_body = 1.105 - 0.3
+m_wheels = 0.3
 g = 9.81
-L = 1
-d1 = 0.01
-d2 = 0.01
+L = 0.3
+
+# Damping coeffs
+d1 = 0.001
+d2 = 0.001
 
 A = np.array([[0,0,1,0],
               [0,0,0,1],
-              [0,g*m_p/m_c, -d1/m_c, -d2/(L*m_c)],
-              [0, g*(m_c+m_p)/(L*m_c), -d1/(L*m_c), -d2*(m_c+m_p)/(L**2 *m_c * m_p)]
+              [0,g*m_wheels/m_body, -d1/m_body, -d2/(L*m_body)],
+              [0, g*(m_body+m_wheels)/(L*m_body), -d1/(L*m_body), -d2*(m_body+m_wheels)/(L**2 *m_body * m_wheels)]
               ])
-B = np.array([[0],[0], [1/m_c], [1/(L*m_c)]])
+B = np.array([[0],[0], [1/m_body], [1/(L*m_body)]])
 
 print("Eigenvalues of Plant: ", np.linalg.eig(A)[0])
 
 Q = np.identity(4)*0.01
-Q[0,0] = 1.0
+Q[0,0] = 50.0
 Q[1,1] = 1.0
 Q[2,2] *= 0.01
 Q[3,3] *= 0.01
-R = np.identity(1) * 10.0
+R = np.identity(1) * 0.1
 
 K, S, E = ct.lqr(A, B, Q, R)
 

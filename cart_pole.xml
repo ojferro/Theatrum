@@ -83,6 +83,7 @@
 
   <sensor>
     <accelerometer name="accelerometer" site="accel_site" noise="0.0"/>
+    <gyro name="gyro" site="accel_site" noise="0.0"/>
     <framequat name="angle_sensor" objtype="site" objname="wheelbase"/>
     <framepos name="base_position" objtype="site" objname="wheelbase"/>
     <framelinvel name="base_velocity" objtype="site" objname="wheelbase"/>
