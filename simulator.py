@@ -43,6 +43,10 @@ class LQR:
     position_setpoint = 0.0
     velocity_setpoint = 1.0
 
+    def __init__(self, dt):
+        self.dt = dt
+        self.prev_time = time.time()
+
     def compute_state(self, angle_sensor, position_sensor, velocity_sensor, ang_velocity_sensor):
         # For future reference: One of the things that was likely wrong was that the accelerometer to angle computation did not account for the linear accelerations
         # As such, the "angle" that I would compute would be wrong
@@ -264,8 +268,6 @@ EPISODE_LENGTH_S = 1000.0
 VIZ_IN_REALTIME = True
 # print(f"Timestep {m.opt.timestep}")
 
-controller = LQR()
-
 times_dbg = np.array([])
 accel_theta_dot_dbg = np.array([])
 filtered_accel_theta_dot_dbg = np.array([])
@@ -285,6 +287,7 @@ model_theta_dot_dbg = np.array([])
 renderer_fps = 25
 simulation_timestep = m.opt.timestep
 
+controller = LQR(simulation_timestep)
 comp_filter = ComplementaryFilter(simulation_timestep)
 temporal_filter = TemporalFilter(alpha = 0.5)
 # comp_filter = AdaptiveComplementaryFilter(simulation_timestep, base_alpha=0.99)
