@@ -31,30 +31,31 @@ def quaternion_to_euler(q):
 
 
 class LQR:
-    # K = np.array([[-1,	-1.5512,	6.9235,	1.5845]])
-    # K = np.array([[-31.6227766 , 162.92827674, -30.40599676,  50.15742702]])
-    # K = np.array([[100.        ,  346.86699245,  -81.69049517,  108.76436008]])
 
-    K = np.array([[22.36067977,  55.34166306, -14.24434334,   9.09960571]])
+    K = np.array([[0, 55.34166306, 14.24434334, 9.09960571]])
+    
 
     dt = 0.001
     prev_time = time.time()
 
     state_dbg = np.array([0,0,0,0])
 
+    position_setpoint = 0.0
+    velocity_setpoint = 1.0
+
     def compute_state(self, angle_sensor, position_sensor, velocity_sensor, ang_velocity_sensor):
         # For future reference: One of the things that was likely wrong was that the accelerometer to angle computation did not account for the linear accelerations
         # As such, the "angle" that I would compute would be wrong
 
-        x = position_sensor.data[0]
-        x_dot = -velocity_sensor.data[0]
+        x = position_sensor
+        x_dot = velocity_sensor
         theta = angle_sensor
-        theta_dot = ang_velocity_sensor.data[1]
+        theta_dot = ang_velocity_sensor
 
 
         # For future reference, one of the things that was wrong was that the order of the state vars here vs in the LQR solver was different...
 
-        return np.array([x, theta, x_dot, theta_dot])
+        return np.array([x, theta, x_dot, theta_dot]) - np.array([x, 0, self.velocity_setpoint, 0])
         # return np.array([x, x_dot, theta, theta_dot])
     
     def step(self, angle_sensor, position_sensor, velocity_sensor, ang_velocity_sensor):
@@ -75,26 +76,29 @@ class LQR:
 
         # Save state for debugging
         self.state_dbg = state
-        self.state_dbg[1] *= 180/np.pi
-        self.state_dbg[3] *= 180/np.pi
+        # self.state_dbg[1] *= 180/np.pi
+        # self.state_dbg[3] *= 180/np.pi
 
 class ComplementaryFilter:
-    def __init__(self, dt, alpha=0.98):
+    def __init__(self, dt, alpha=0.999):
 
         self.dt = dt
-        self.alpha = 0.99
+        self.alpha = alpha
 
         self.pitch = 0.0
 
     def calculate_angle_from_accelerometer(self, accel_data, dynamic_accel_est):
         # Extract components
-        x, _y, z = accel_data
+        x, y, z = accel_data
 
         # Conversion
         x -= dynamic_accel_est[0]
         z -= dynamic_accel_est[1]
 
-        angle = np.arctan2(-x, z)
+        # print(f"Accel data: X: {x}, Y: {y},  Z: {z}")
+
+        # Negate to match model convention
+        angle = -np.arctan2(x, z)
         return angle
     
     def step(self, gyro, accel, dynamic_accel_est = np.array([0,0])):
@@ -107,7 +111,7 @@ class ComplementaryFilter:
         # Integrate the gyroscope data
         gyro_angle_pitch = gyro_y * self.dt
 
-        # print(f"gyro: {gyro_angle_pitch}, accel: {accel_angle_pitch}")
+        # print(f"gyro angle: {self.pitch + gyro_angle_pitch}, accel angle: {accel_angle_pitch}")
 
         # Apply complementary filter
         self.pitch = self.alpha * (self.pitch + gyro_angle_pitch) + (1 - self.alpha) * accel_angle_pitch
@@ -115,6 +119,86 @@ class ComplementaryFilter:
         # Negate to match model convention
         return self.pitch
 
+class TemporalFilter:
+    def __init__(self, alpha=0.9, init_val=0):
+        self.alpha = alpha
+        self.prev_val = init_val
+
+    def filter(self, val):
+        filtered_val = self.alpha * val + (1 - self.alpha) * self.prev_val
+
+        # TODO: See whether previous should be filtered or raw value.
+        self.prev_val = val
+        return filtered_val
+    
+
+# class AdaptiveComplementaryFilter:
+#     ''' Scales the alpha in a complementary filter by the magnitude of the gyro reading.
+#         * It gives MORE importance to the gyro with large gyro readings, since Coriolis forces introduce
+#         accelerations on accelerometer data.
+#         * It gives LESS importance to gyro with small gyro readings, since accelerometer is expeced to be less subject to Coriolis forces.
+#     '''
+#     def __init__(self, dt, base_alpha=0.99, alpha_variation_range=0.05, max_gyro_val=100.0):
+
+#         self.dt = dt
+#         self.base_alpha = base_alpha
+#         self.alpha_variation_range = min(alpha_variation_range, 1-base_alpha)
+#         print("Using alpha variation range: ", self.alpha_variation_range)
+#         assert False, "false"
+
+#         self.max_gyro_val = max_gyro_val
+
+#         self.pitch = 0.0
+
+#     def map_to_range(self, val, from_min, from_max, to_min, to_max):
+
+#         val = np.clip(val, from_min, from_max)
+        
+#         # Calculate the scaling factor
+#         scale = (to_max - to_min) / (from_max - from_min)
+#         # Apply the transformation
+#         return to_min + (val - from_min) * scale
+
+#     def calculate_angle_from_accelerometer(self, accel_data, dynamic_accel_est):
+#         # Extract components
+#         x, y, z = accel_data
+
+#         # Conversion
+#         x -= dynamic_accel_est[0]
+#         z -= dynamic_accel_est[1]
+
+#         # print(f"Accel data: X: {x}, Y: {y},  Z: {z}")
+
+#         # Negate to match model convention
+#         angle = -np.arctan2(x, z)
+#         return angle
+    
+#     def step(self, gyro, accel, dynamic_accel_est = np.array([0,0])):
+#         # Get sensor data
+#         _gyro_x, gyro_y, _gyro_z = gyro
+
+#         # Add Gaussian noise to simulate sensor noise
+#         gyro_y += np.random.normal(0, 0.04)
+
+#         # Calculate pitch and roll from accelerometer data
+#         accel_angle_pitch = self.calculate_angle_from_accelerometer(accel, dynamic_accel_est)
+
+#         # Integrate the gyroscope data
+#         gyro_angle_pitch = gyro_y * self.dt
+
+#         # print(f"gyro angle: {self.pitch + gyro_angle_pitch}, accel angle: {accel_angle_pitch}")
+
+#         min_val = self.base_alpha - self.alpha_variation_range
+#         max_val = self.base_alpha + self.alpha_variation_range
+#         alpha = self.map_to_range(np.abs(gyro_y), 0, self.max_gyro_val, min_val, max_val)
+
+#         print(f"alpha: {alpha}")
+
+#         # Apply complementary filter
+#         self.pitch = alpha * (self.pitch + gyro_angle_pitch) + (1 - alpha) * accel_angle_pitch
+        
+#         # Negate to match model convention
+#         return self.pitch
     
 class Model:
     def __init__(self, dt):
@@ -137,7 +221,7 @@ class Model:
         self.B = np.array([[0],[0], [1/m_c], [1/(L*m_c)]])
 
         self.x_ddot = 0.0
-        self.theta_ddot = 0.0
+        # self.theta_ddot = 0.0
 
     def step(self, state, u):
         # print(f"State: {state}, u: {u}")
@@ -145,9 +229,9 @@ class Model:
 
         # print(f"New state: {new_state}")
         self.x_ddot = (new_state[2] - state[2])/self.delta_t
-        self.theta_ddot = (new_state[3] - state[3])/self.delta_t
+        # self.theta_ddot = (new_state[3] - state[3])/self.delta_t
 
-        print(f"x_ddot: {self.x_ddot}, theta_ddot: {self.theta_ddot}")
+        print(f"x_ddot: {self.x_ddot}")#, theta_ddot: {self.theta_ddot}")
 
         return new_state
     
@@ -160,31 +244,31 @@ class Model:
 
         L = 0.37  # Distance from pivot point to accelerometer, meters
 
-        P_x_ddot = self.x_ddot - L * (self.theta_ddot * np.cos(theta) - theta_dot**2 * np.sin(theta))
-        P_z_ddot = 0 + L * (self.theta_ddot * np.sin(theta) + theta_dot**2 * np.cos(theta))
+        tangentialAccel = self.x_ddot*np.cos(theta) #- theta_dot**2*np.cos(theta)
+        radialAccel = -self.x_ddot*np.sin(theta) - theta_dot**2 * L
 
-        print(f"P_x_ddot: {P_x_ddot}, P_z_ddot: {P_z_ddot}")
+        # P_x_ddot = self.x_ddot - L * (self.theta_ddot * np.cos(theta) - theta_dot**2 * np.sin(theta))
+        # P_z_ddot = 0 + L * (self.theta_ddot * np.sin(theta) + theta_dot**2 * np.cos(theta))
 
-        theta = -theta
-        rot_mat = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+        # print(f"P_x_ddot: {P_x_ddot}, P_z_ddot: {P_z_ddot}")
+        print(f"tangentialAccel: {tangentialAccel}, radialAccel: {radialAccel}")
+        print(f"theta_dot from dynamic accel computation: {theta_dot}")
 
-        dynamic_accel_in_accel_frame = rot_mat @ np.array([P_x_ddot, P_z_ddot])
-
-        print(f"Dynamic accel in accel frame: {dynamic_accel_in_accel_frame}")
-
-        return dynamic_accel_in_accel_frame
+        return np.array([tangentialAccel, radialAccel])
 
 
 m = mujoco.MjModel.from_xml_path('./cart_pole.xml')
 d = mujoco.MjData(m)
 
-EPISODE_LENGTH_S = 1.00
+EPISODE_LENGTH_S = 1000.0
+VIZ_IN_REALTIME = True
 # print(f"Timestep {m.opt.timestep}")
 
 controller = LQR()
 
 times_dbg = np.array([])
-qvels_dbg = np.array([])
+accel_theta_dot_dbg = np.array([])
+filtered_accel_theta_dot_dbg = np.array([])
 ctrls_dbg = np.array([])
 
 x_dbg = np.array([])
@@ -194,7 +278,7 @@ x_dot_dbg = np.array([])
 theta_dot_dbg = np.array([])
 
 model_x_dbg = np.array([])
-model_theta_dbg = np.array([])
+# model_theta_dbg = np.array([])
 model_x_dot_dbg = np.array([])
 model_theta_dot_dbg = np.array([])
 
@@ -202,9 +286,11 @@ renderer_fps = 25
 simulation_timestep = m.opt.timestep
 
 comp_filter = ComplementaryFilter(simulation_timestep)
+temporal_filter = TemporalFilter(alpha = 0.5)
+# comp_filter = AdaptiveComplementaryFilter(simulation_timestep, base_alpha=0.99)
 math_model = Model(simulation_timestep)
 
-model_predicted_state = np.array([0,0,0,0])
+# model_predicted_state = np.array([0,0,0,0])
 
 # Pick the fps that most closely matches a multiple of the simulation timestep. This facilitates the "realtime rendering" logic
 renderer_fps = 1/(round((1/renderer_fps)/simulation_timestep) * simulation_timestep)
@@ -221,14 +307,16 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
 
     while viewer.is_running() and d.time < EPISODE_LENGTH_S:
 
-        # time.sleep(0.5)
+        # time.sleep(0.1)
+        # time.sleep(10000000)
         
         # This must be the first thing in the loop. Every single computation from here on will eat into the delta time between frames.
-        next_frame_at = time.time_ns() + (1/renderer_fps) * 1_000_000_000
+        if VIZ_IN_REALTIME:
+            next_frame_at = time.time_ns() + (1/renderer_fps) * 1_000_000_000
 
-        realtime_factor = ((1/renderer_fps * 1_000_000_000)/(time.time_ns()-prev_iteration_time))
-        print(f"{realtime_factor:.2f}X realtime.", end="\r")
-        prev_iteration_time = time.time_ns()
+            realtime_factor = ((1/renderer_fps * 1_000_000_000)/(time.time_ns()-prev_iteration_time))
+            print(f"{realtime_factor:.2f}X realtime.", end="\r")
+            prev_iteration_time = time.time_ns()
 
         # Perform only as many physics steps are would fit in the time between frames
         # If performing more than this, it would appear as if the simulation were sped up
@@ -242,32 +330,51 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
             # print(f"gyro: {d.sensor('gyro').data}")
 
             # model_predicted_state = math_model.step(controller.state_dbg, [d.ctrl[0]])
-            model_predicted_state = math_model.step(model_predicted_state, [d.ctrl[0]])
-            dynamic_accel = math_model.calculate_dynamic_acceleration(model_predicted_state)
+            # model_predicted_state = math_model.step(model_predicted_state, [d.ctrl[0]])
+            # model_predicted_state[3] = d.sensor('gyro').data[1]
+            # dynamic_accel = math_model.calculate_dynamic_acceleration(model_predicted_state)
+            # print(f"GYRO: {d.sensor('gyro').data}")
 
-            cf_angle = comp_filter.step(d.sensor('gyro').data, d.sensor('accelerometer').data, dynamic_accel)
+            # Simulate sensor noise
+            gyro = d.sensor('gyro').data
+            gyro += np.random.normal(0, 0.04*1.5, size=(3,))
+            accel = d.sensor('accelerometer').data
+            accel += np.random.normal(0, 0.14*1.5, size=(3,))
 
-            # print(f"angle: {angle}, cf_angle: {cf_angle}")
-            controller.step(angle, d.sensor('base_position'), d.sensor('base_velocity'), d.sensor('base_ang_velocity'))
+            cf_angle = comp_filter.step(gyro, accel) #dynamic_accel)
+            thetadot = temporal_filter.filter(gyro[1])
+
+            wheel_angular_position = d.sensor('wheel_pos').data[0]
+            wheel_angular_velocity = d.sensor('wheel_vel').data[0]  + np.random.normal(0, 0.01)
+            x = wheel_angular_position * 0.03
+            xdot = wheel_angular_velocity * 0.03
+
+            # Use GT readings
+            # controller.step(angle, d.sensor('base_position'), d.sensor('base_velocity'), d.sensor('base_ang_velocity'))
+
+            # Use estimated readings
+            controller.step(cf_angle, x, xdot, thetadot)
+
 
         # Terminate episode if max angle exceeded
-        if abs(angle) > 35.0*np.pi/180.0:
-            print("35 deg angle exceeded. Terminating...")
+        if abs(angle) > 80.0*np.pi/180.0:
+            print("80 deg angle exceeded. Terminating...")
             break
 
         times_dbg     = np.append(times_dbg, d.time)
-        qvels_dbg     = np.append(qvels_dbg, d.qvel[-1])
         ctrls_dbg     = np.append(ctrls_dbg, d.ctrl[0])
-        x_dbg         = np.append(x_dbg, controller.state_dbg[0])
-        theta_dbg     = np.append(theta_dbg, controller.state_dbg[1])
-        accel_theta_dbg = np.append(accel_theta_dbg, cf_angle* 180/np.pi)
-        x_dot_dbg     = np.append(x_dot_dbg, controller.state_dbg[2])
-        theta_dot_dbg = np.append(theta_dot_dbg, controller.state_dbg[3])
+        x_dbg         = np.append(x_dbg, d.sensor('base_position').data[0])
+        theta_dbg     = np.append(theta_dbg, angle * 180/np.pi)
+        accel_theta_dbg = np.append(accel_theta_dbg, cf_angle * 180/np.pi)
+        x_dot_dbg     = np.append(x_dot_dbg, d.sensor('base_velocity').data[0])
+        theta_dot_dbg = np.append(theta_dot_dbg, d.sensor('base_ang_velocity').data[1] * 180/np.pi)
+        accel_theta_dot_dbg     = np.append(accel_theta_dot_dbg, gyro[1] * 180/np.pi)
+        filtered_accel_theta_dot_dbg     = np.append(filtered_accel_theta_dot_dbg, thetadot * 180/np.pi)
 
-        model_x_dbg         = np.append(model_x_dbg,         model_predicted_state[0])
-        model_theta_dbg     = np.append(model_theta_dbg,     model_predicted_state[1])
-        model_x_dot_dbg     = np.append(model_x_dot_dbg,     model_predicted_state[2])
-        model_theta_dot_dbg = np.append(model_theta_dot_dbg, model_predicted_state[3])
+        # model_x_dbg         = np.append(model_x_dbg,         model_predicted_state[0])
+        # model_theta_dbg     = np.append(model_theta_dbg,     model_predicted_state[1])
+        # model_x_dot_dbg     = np.append(model_x_dot_dbg,     model_predicted_state[2])
+        # model_theta_dot_dbg = np.append(model_theta_dot_dbg, model_predicted_state[3])
 
         # The last thing that should happen is the rendering. Anything else will eat into the delta time between frames.
         with viewer.lock():
@@ -279,12 +386,13 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
             # Render frame
             viewer.sync()
 
-            if time.time_ns() > next_frame_at:
-                print("\n\nWARNING: Renderer fps missed. Iteration time too long.")
-                continue
+            if VIZ_IN_REALTIME:
+                if time.time_ns() > next_frame_at:
+                    print("\n\nWARNING: Renderer fps missed. Iteration time too long.")
+                    continue
 
-            while time.time_ns() < next_frame_at:    
-                continue # Busy wait. This is much better for timing than time.sleep(), which is not precise.
+                while time.time_ns() < next_frame_at:    
+                    continue # Busy wait. This is much better for timing than time.sleep(), which is not precise.
 
 
 sim_end_time = time.monotonic()
@@ -298,30 +406,39 @@ if True:
     fig, ax = plt.subplots(2, 3)
     stride = 1
 
-    ax[0,0].plot(times_dbg[::stride], qvels_dbg[::stride])
-    ax[0,0].legend(["Velocity"])
+    # Plot the data
 
-    ax[0,1].plot(times_dbg[::stride], ctrls_dbg[::stride])
-    ax[0,1].legend(["Control"])
+    ### X ###
+    ax[0,0].plot(times_dbg[::stride], x_dbg[::stride])
+    ax[0,0].legend(["X"])
 
-    ax[0,2].plot(times_dbg[::stride], x_dbg[::stride])
-    ax[0,2].plot(times_dbg[::stride], model_x_dbg[::stride], linestyle="dotted")
-    ax[0,2].legend(["X"])
+    ### X_dot ###
+    ax[1,0].plot(times_dbg[::stride], x_dot_dbg[::stride])
+    ax[1,0].legend(["X_dot"])
 
-    ax[1,0].plot(times_dbg[::stride], theta_dbg[::stride])
-    ax[1,0].plot(times_dbg[::stride], model_theta_dbg[::stride], linestyle="dotted")
-    ax[1,0].legend(["Theta"])
+    ### Theta ###
+    # GT Theta
+    ax[0,1].plot(times_dbg[::stride], theta_dbg[::stride])
 
-    ax[1,0].plot(times_dbg[::stride], accel_theta_dbg[::stride], linestyle="--")
-    # ax[1,0].legend(["Accel Theta"])
+    # Complementary filter Theta
+    ax[0,1].plot(times_dbg[::stride], accel_theta_dbg[::stride], linestyle="--")
+    ax[0,1].legend(["Theta", "IMU Theta"])
 
-    ax[1,1].plot(times_dbg[::stride], x_dot_dbg[::stride])
-    ax[1,1].plot(times_dbg[::stride], model_x_dot_dbg[::stride], linestyle="dotted")
-    ax[1,1].legend(["X_dot"])
 
-    ax[1,2].plot(times_dbg[::stride], theta_dot_dbg[::stride])
-    ax[1,2].plot(times_dbg[::stride], model_theta_dot_dbg[::stride], linestyle="dotted")
-    ax[1,2].legend(["Theta_dot"])
+    ### Theta_dot ###
+    ax[1,1].plot(times_dbg[::stride], theta_dot_dbg[::stride])
+    ax[1,1].plot(times_dbg[::stride], accel_theta_dot_dbg[::stride])
+    ax[1,1].plot(times_dbg[::stride], filtered_accel_theta_dot_dbg[::stride], linestyle="--")
+    ax[1,1].legend(["Theta_dot", "IMU Theta_dot", "Filtered IMU Theta_dot"])
+
+    ### Control ###
+    ax[0,2].plot(times_dbg[::stride], ctrls_dbg[::stride])
+    ax[0,2].legend(["Control"])
+
+    ### q_vels ###
+    # ax[1,2].plot(times_dbg[::stride], accel_theta_dot_dbg[::stride])
+    # ax[1,2].legend(["Est theta_dot"])
+
 
     plt.show()
 

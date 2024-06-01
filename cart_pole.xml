@@ -43,13 +43,15 @@
 
   <worldbody>
     <geom type="plane" size="50 50 .01" material="grid"/>
-    <body name="pendulum" pos="-1 0 .03" euler="0 0 0">
+    <body name="pendulum" pos="-0.25 0 .03" euler="0 0 0">
 
         <freejoint/>
         
         <!-- <geom name="bodygeom" type="box" pos="0 0 0.25" size=".05 .05 .05" mass="1.5" rgba="0.9 0.9 0.9 0.1"/> -->
         
         <site name="wheelbase" pos="0 0 0"/>
+        <geom name="wheelbase_viz" type="box" pos="0 0 0" size=".01 .01 .01" mass="0.001" rgba="0.0 1.0 0.0 1.0"/>
+
         <site name="accel_site" pos="0 0 0.37"/>
         <geom name="accel" type="box" pos="0 0 0.37" size=".01 .01 .01" mass="0" rgba="0.0 1.0 0.0 1.0"/>
 
@@ -90,5 +92,6 @@
     <frameangvel name="base_ang_velocity" objtype="site" objname="wheelbase"/>
     <torque name="wheel_torque" site="torque_sensor_mnt"/>
     <jointvel name="wheel_vel" joint="right"/>
+    <jointpos name="wheel_pos" joint="right"/>
   </sensor>
 </mujoco>

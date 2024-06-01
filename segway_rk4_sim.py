@@ -149,7 +149,7 @@ class VizConsole:
         self.prev_callback_time = time.time()
 
     
-sim = SegwaySimulator([0, 0.1, 0, 0])
+sim = SegwaySimulator([-1.0, 0.1, 0, 0])
 controller = PID()
 viz = VizConsole(sim)
 
