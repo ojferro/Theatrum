@@ -32,7 +32,10 @@ def quaternion_to_euler(q):
 
 class LQR:
 
-    K = np.array([[0, 55.34166306, 14.24434334, 9.09960571]])
+    # K = np.array([[22.36, 55.34166306, 14.24434334, 9.09960571]])
+
+    # K = np.array([[7.07106781, 37.54403075,  6.2056408 ,  5.98156092]])
+    K = np.array([[3.16227766, 31.53989481,  3.65425785,  4.92520868]])
     
 
     dt = 0.001
@@ -41,7 +44,7 @@ class LQR:
     state_dbg = np.array([0,0,0,0])
 
     position_setpoint = 0.0
-    velocity_setpoint = 1.0
+    velocity_setpoint = 0.0
 
     def __init__(self, dt):
         self.dt = dt
@@ -59,7 +62,7 @@ class LQR:
 
         # For future reference, one of the things that was wrong was that the order of the state vars here vs in the LQR solver was different...
 
-        return np.array([x, theta, x_dot, theta_dot]) - np.array([x, 0, self.velocity_setpoint, 0])
+        return np.array([x, theta, x_dot, theta_dot]) - np.array([self.position_setpoint, 0, self.velocity_setpoint, 0])
         # return np.array([x, x_dot, theta, theta_dot])
     
     def step(self, angle_sensor, position_sensor, velocity_sensor, ang_velocity_sensor):

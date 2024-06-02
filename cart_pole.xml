@@ -43,7 +43,7 @@
 
   <worldbody>
     <geom type="plane" size="50 50 .01" material="grid"/>
-    <body name="pendulum" pos="-0.25 0 .03" euler="0 0 0">
+    <body name="pendulum" pos="0.25 0 .03" euler="0 0 0">
 
         <freejoint/>
         
