@@ -34,16 +34,17 @@ B = np.array([[0],[0], [1/m_body], [1/(L*m_body)]])
 print("Eigenvalues of Plant: ", np.linalg.eig(A)[0])
 
 Q = np.identity(4)*0.01
-Q[0,0] = 50.0
+Q[0,0] = 1.0
 Q[1,1] = 1.0
 Q[2,2] *= 0.01
 Q[3,3] *= 0.01
-R = np.identity(1) * 0.1
+R = np.identity(1) * 2
 
 K, S, E = ct.lqr(A, B, Q, R)
 
+# Print K with all positives to match convention in MuJoCo and real life system
 print("\nK")
-print(np.array2string(K, separator=', '))
+print(np.array2string(np.abs(K), separator=', '))
 
 print("\n\nS")
 print(S)
