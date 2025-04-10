@@ -6,6 +6,8 @@ import mujoco.viewer
 import numpy as np
 import matplotlib.pyplot as plt
 
+from filters import TemporalFilter
+
 np.set_printoptions(suppress=True)
 
 
@@ -32,9 +34,6 @@ def quaternion_to_euler(q):
 
 class LQR:
 
-    # K = np.array([[22.36, 55.34166306, 14.24434334, 9.09960571]])
-
-    # K = np.array([[7.07106781, 37.54403075,  6.2056408 ,  5.98156092]])
     K = np.array([[3.16227766, 31.53989481,  3.65425785,  4.92520868]])
     
 
@@ -63,11 +62,8 @@ class LQR:
         # For future reference, one of the things that was wrong was that the order of the state vars here vs in the LQR solver was different...
 
         return np.array([x, theta, x_dot, theta_dot]) - np.array([self.position_setpoint, 0, self.velocity_setpoint, 0])
-        # return np.array([x, x_dot, theta, theta_dot])
     
     def step(self, angle_sensor, position_sensor, velocity_sensor, ang_velocity_sensor):
-        # if time.time() - self.prev_time < self.dt:
-        #     return
         
         state = self.compute_state(angle_sensor, position_sensor, velocity_sensor, ang_velocity_sensor)
         # self.state_dbg = state
@@ -83,8 +79,6 @@ class LQR:
 
         # Save state for debugging
         self.state_dbg = state
-        # self.state_dbg[1] *= 180/np.pi
-        # self.state_dbg[3] *= 180/np.pi
 
 class ComplementaryFilter:
     def __init__(self, dt, alpha=0.999):
@@ -102,8 +96,6 @@ class ComplementaryFilter:
         x -= dynamic_accel_est[0]
         z -= dynamic_accel_est[1]
 
-        # print(f"Accel data: X: {x}, Y: {y},  Z: {z}")
-
         # Negate to match model convention
         angle = -np.arctan2(x, z)
         return angle
@@ -118,95 +110,12 @@ class ComplementaryFilter:
         # Integrate the gyroscope data
         gyro_angle_pitch = gyro_y * self.dt
 
-        # print(f"gyro angle: {self.pitch + gyro_angle_pitch}, accel angle: {accel_angle_pitch}")
-
         # Apply complementary filter
         self.pitch = self.alpha * (self.pitch + gyro_angle_pitch) + (1 - self.alpha) * accel_angle_pitch
         
         # Negate to match model convention
         return self.pitch
 
-class TemporalFilter:
-    def __init__(self, alpha=0.9, init_val=0):
-        self.alpha = alpha
-        self.prev_val = init_val
-
-    def filter(self, val):
-        filtered_val = self.alpha * val + (1 - self.alpha) * self.prev_val
-
-        # TODO: See whether previous should be filtered or raw value.
-        self.prev_val = val
-        return filtered_val
-    
-
-# class AdaptiveComplementaryFilter:
-#     ''' Scales the alpha in a complementary filter by the magnitude of the gyro reading.
-#         * It gives MORE importance to the gyro with large gyro readings, since Coriolis forces introduce
-#         accelerations on accelerometer data.
-#         * It gives LESS importance to gyro with small gyro readings, since accelerometer is expeced to be less subject to Coriolis forces.
-#     '''
-#     def __init__(self, dt, base_alpha=0.99, alpha_variation_range=0.05, max_gyro_val=100.0):
-
-#         self.dt = dt
-#         self.base_alpha = base_alpha
-#         self.alpha_variation_range = min(alpha_variation_range, 1-base_alpha)
-#         print("Using alpha variation range: ", self.alpha_variation_range)
-#         assert False, "false"
-
-#         self.max_gyro_val = max_gyro_val
-
-#         self.pitch = 0.0
-
-#     def map_to_range(self, val, from_min, from_max, to_min, to_max):
-
-#         val = np.clip(val, from_min, from_max)
-        
-#         # Calculate the scaling factor
-#         scale = (to_max - to_min) / (from_max - from_min)
-#         # Apply the transformation
-#         return to_min + (val - from_min) * scale
-
-#     def calculate_angle_from_accelerometer(self, accel_data, dynamic_accel_est):
-#         # Extract components
-#         x, y, z = accel_data
-
-#         # Conversion
-#         x -= dynamic_accel_est[0]
-#         z -= dynamic_accel_est[1]
-
-#         # print(f"Accel data: X: {x}, Y: {y},  Z: {z}")
-
-#         # Negate to match model convention
-#         angle = -np.arctan2(x, z)
-#         return angle
-    
-#     def step(self, gyro, accel, dynamic_accel_est = np.array([0,0])):
-#         # Get sensor data
-#         _gyro_x, gyro_y, _gyro_z = gyro
-
-#         # Add Gaussian noise to simulate sensor noise
-#         gyro_y += np.random.normal(0, 0.04)
-
-#         # Calculate pitch and roll from accelerometer data
-#         accel_angle_pitch = self.calculate_angle_from_accelerometer(accel, dynamic_accel_est)
-
-#         # Integrate the gyroscope data
-#         gyro_angle_pitch = gyro_y * self.dt
-
-#         # print(f"gyro angle: {self.pitch + gyro_angle_pitch}, accel angle: {accel_angle_pitch}")
-
-#         min_val = self.base_alpha - self.alpha_variation_range
-#         max_val = self.base_alpha + self.alpha_variation_range
-#         alpha = self.map_to_range(np.abs(gyro_y), 0, self.max_gyro_val, min_val, max_val)
-
-#         print(f"alpha: {alpha}")
-
-#         # Apply complementary filter
-#         self.pitch = alpha * (self.pitch + gyro_angle_pitch) + (1 - alpha) * accel_angle_pitch
-        
-#         # Negate to match model convention
-#         return self.pitch
-    
 class Model:
     def __init__(self, dt):
         m_c = 1.105 - 0.3
@@ -231,14 +140,11 @@ class Model:
         # self.theta_ddot = 0.0
 
     def step(self, state, u):
-        # print(f"State: {state}, u: {u}")
         new_state = state + (self.A @ state + self.B @ u) * self.delta_t
 
-        # print(f"New state: {new_state}")
         self.x_ddot = (new_state[2] - state[2])/self.delta_t
-        # self.theta_ddot = (new_state[3] - state[3])/self.delta_t
 
-        print(f"x_ddot: {self.x_ddot}")#, theta_ddot: {self.theta_ddot}")
+        print(f"x_ddot: {self.x_ddot}")
 
         return new_state
     
@@ -257,7 +163,6 @@ class Model:
         # P_x_ddot = self.x_ddot - L * (self.theta_ddot * np.cos(theta) - theta_dot**2 * np.sin(theta))
         # P_z_ddot = 0 + L * (self.theta_ddot * np.sin(theta) + theta_dot**2 * np.cos(theta))
 
-        # print(f"P_x_ddot: {P_x_ddot}, P_z_ddot: {P_z_ddot}")
         print(f"tangentialAccel: {tangentialAccel}, radialAccel: {radialAccel}")
         print(f"theta_dot from dynamic accel computation: {theta_dot}")
 
@@ -269,7 +174,6 @@ d = mujoco.MjData(m)
 
 EPISODE_LENGTH_S = 1000.0
 VIZ_IN_REALTIME = True
-# print(f"Timestep {m.opt.timestep}")
 
 times_dbg = np.array([])
 accel_theta_dot_dbg = np.array([])
@@ -283,7 +187,7 @@ x_dot_dbg = np.array([])
 theta_dot_dbg = np.array([])
 
 model_x_dbg = np.array([])
-# model_theta_dbg = np.array([])
+model_theta_dbg = np.array([])
 model_x_dot_dbg = np.array([])
 model_theta_dot_dbg = np.array([])
 
@@ -307,14 +211,10 @@ print(f"    {physics_updates_per_frame} physics updates per rendered frame.")
 
 debug_ctr = 0
 with mujoco.viewer.launch_passive(m, d) as viewer:
-    # time.sleep(1)
     prev_iteration_time = 0 # Don't initialize to current time. The delta used for realtime factor might cause a DIV0 error
     sim_start_time = time.monotonic()
 
     while viewer.is_running() and d.time < EPISODE_LENGTH_S:
-
-        # time.sleep(0.1)
-        # time.sleep(10000000)
         
         # This must be the first thing in the loop. Every single computation from here on will eat into the delta time between frames.
         if VIZ_IN_REALTIME:
@@ -333,7 +233,6 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
             # accel_angle = calculate_angle_from_accelerometer(d.sensor('accelerometer').data)
             angle = quaternion_to_euler(d.sensor('angle_sensor').data)[1]
 
-            # print(f"gyro: {d.sensor('gyro').data}")
 
             # model_predicted_state = math_model.step(controller.state_dbg, [d.ctrl[0]])
             # model_predicted_state = math_model.step(model_predicted_state, [d.ctrl[0]])
@@ -367,15 +266,15 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
             print("80 deg angle exceeded. Terminating...")
             break
 
-        times_dbg     = np.append(times_dbg, d.time)
-        ctrls_dbg     = np.append(ctrls_dbg, d.ctrl[0])
-        x_dbg         = np.append(x_dbg, d.sensor('base_position').data[0])
-        theta_dbg     = np.append(theta_dbg, angle * 180/np.pi)
-        accel_theta_dbg = np.append(accel_theta_dbg, cf_angle * 180/np.pi)
-        x_dot_dbg     = np.append(x_dot_dbg, d.sensor('base_velocity').data[0])
-        theta_dot_dbg = np.append(theta_dot_dbg, d.sensor('base_ang_velocity').data[1] * 180/np.pi)
-        accel_theta_dot_dbg     = np.append(accel_theta_dot_dbg, gyro[1] * 180/np.pi)
-        filtered_accel_theta_dot_dbg     = np.append(filtered_accel_theta_dot_dbg, thetadot * 180/np.pi)
+        times_dbg                    = np.append(times_dbg, d.time)
+        ctrls_dbg                    = np.append(ctrls_dbg, d.ctrl[0])
+        x_dbg                        = np.append(x_dbg, d.sensor('base_position').data[0])
+        theta_dbg                    = np.append(theta_dbg, angle * 180/np.pi)
+        accel_theta_dbg              = np.append(accel_theta_dbg, cf_angle * 180/np.pi)
+        x_dot_dbg                    = np.append(x_dot_dbg, d.sensor('base_velocity').data[0])
+        theta_dot_dbg                = np.append(theta_dot_dbg, d.sensor('base_ang_velocity').data[1] * 180/np.pi)
+        accel_theta_dot_dbg          = np.append(accel_theta_dot_dbg, gyro[1] * 180/np.pi)
+        filtered_accel_theta_dot_dbg = np.append(filtered_accel_theta_dot_dbg, thetadot * 180/np.pi)
 
         # model_x_dbg         = np.append(model_x_dbg,         model_predicted_state[0])
         # model_theta_dbg     = np.append(model_theta_dbg,     model_predicted_state[1])
@@ -442,8 +341,8 @@ if True:
     ax[0,2].legend(["Control"])
 
     ### q_vels ###
-    # ax[1,2].plot(times_dbg[::stride], accel_theta_dot_dbg[::stride])
-    # ax[1,2].legend(["Est theta_dot"])
+    ax[1,2].plot(times_dbg[::stride], accel_theta_dot_dbg[::stride])
+    ax[1,2].legend(["Est theta_dot"])
 
 
     plt.show()
