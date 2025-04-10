@@ -1,238 +1,118 @@
-# pvtol_lqr.m - LQR design for vectored thrust aircraft
-# RMM, 14 Jan 03
-#
-# This file works through an LQR based design problem, using the
-# planar vertical takeoff and landing (PVTOL) aircraft example from
-# Astrom and Murray, Chapter 5.  It is intended to demonstrate the
-# basic functionality of the python-control package.
-#
-
-import os
+import control as ct
+from control.statesp import StateSpace
+import control.matlab as mt
 import numpy as np
-import matplotlib.pyplot as plt  # MATLAB plotting functions
-from control.matlab import *  # MATLAB-like functions
+import matplotlib.pyplot as plt
+import os
+from matplotlib.animation import FuncAnimation
 
-#
-# System dynamics
-#
-# These are the dynamics for the PVTOL system, written in state space
-# form.
-#
 
-# System parameters
-m = 4       # mass of aircraft
-J = 0.0475  # inertia around pitch axis
-r = 0.25    # distance to center of force
-g = 9.8     # gravitational constant
-c = 0.05    # damping factor (estimated)
+# M = 2.0
+# m = 0.3
+# L = 0.25
+# r = 0.03
+# g = 9.81
 
-# State space dynamics
-xe = [0, 0, 0, 0, 0, 0]  # equilibrium point of interest
-ue = [0, m*g]  # (note these are lists, not matrices)
+state = ['x','theta', 'x_dot', 'theta_dot']
 
-# TODO: The following objects need converting from np.matrix to np.array
-# This will involve re-working the subsequent equations as the shapes
-# See below.
+m_body = 1.105 - 0.3
+m_wheels = 0.3
+g = 9.81
+L = 0.3
 
-# Dynamics matrix (use matrix type so that * works for multiplication)
-A = np.matrix(
-    [[0, 0, 0, 1, 0, 0],
-     [0, 0, 0, 0, 1, 0],
-     [0, 0, 0, 0, 0, 1],
-     [0, 0, (-ue[0]*np.sin(xe[2]) - ue[1]*np.cos(xe[2]))/m, -c/m, 0, 0],
-     [0, 0, (ue[0]*np.cos(xe[2]) - ue[1]*np.sin(xe[2]))/m, 0, -c/m, 0],
-     [0, 0, 0, 0, 0, 0]]
-)
+# Damping coeffs
+d1 = 0.001
+d2 = 0.001
 
-# Input matrix
-B = np.matrix(
-    [[0, 0], [0, 0], [0, 0],
-     [np.cos(xe[2])/m, -np.sin(xe[2])/m],
-     [np.sin(xe[2])/m, np.cos(xe[2])/m],
-     [r/J, 0]]
-)
+A = np.array([[0,0,1,0],
+              [0,0,0,1],
+              [0,g*m_wheels/m_body, -d1/m_body, -d2/(L*m_body)],
+              [0, g*(m_body+m_wheels)/(L*m_body), -d1/(L*m_body), -d2*(m_body+m_wheels)/(L**2 *m_body * m_wheels)]
+              ])
+B = np.array([[0],[0], [1/m_body], [1/(L*m_body)]])
 
-# Output matrix 
-C = np.matrix([[1, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0]])
-D = np.matrix([[0, 0], [0, 0]])
+print("Eigenvalues of Plant: ", np.linalg.eig(A)[0])
 
-#
-# Construct inputs and outputs corresponding to steps in xy position
-#
-# The vectors xd and yd correspond to the states that are the desired
-# equilibrium states for the system.  The matrices Cx and Cy are the 
-# corresponding outputs.
-#
-# The way these vectors are used is to compute the closed loop system
-# dynamics as
-#
-#   xdot = Ax + B u  =>  xdot = (A-BK)x + K xd
-#      u = -K(x - xd)       y = Cx
-#
-# The closed loop dynamics can be simulated using the "step" command, 
-# with K*xd as the input vector (assumes that the "input" is unit size,
-# so that xd corresponds to the desired steady state.
-#
+Q = np.identity(4)*0.01
+Q[0,0] = 1.0
+Q[1,1] = 1.0
+Q[2,2] *= 0.01
+Q[3,3] *= 0.01
+R = np.identity(1) * 2
 
-xd = np.matrix([[1], [0], [0], [0], [0], [0]])
-yd = np.matrix([[0], [1], [0], [0], [0], [0]])
+K, S, E = ct.lqr(A, B, Q, R)
 
-#
-# Extract the relevant dynamics for use with SISO library
-#
-# The current python-control library only supports SISO transfer
-# functions, so we have to modify some parts of the original MATLAB
-# code to extract out SISO systems.  To do this, we define the 'lat' and
-# 'alt' index vectors to consist of the states that are are relevant
-# to the lateral (x) and vertical (y) dynamics.
-#
+# Print K with all positives to match convention in MuJoCo and real life system
+print("\nK")
+print(np.array2string(np.abs(K), separator=', '))
 
-# Indices for the parts of the state that we want
-lat = (0, 2, 3, 5)
-alt = (1, 4)
+print("\n\nS")
+print(S)
 
-# Decoupled dynamics
-Ax = (A[lat, :])[:, lat]  # ! not sure why I have to do it this way
-Bx = B[lat, 0]
-Cx = C[0, lat]
-Dx = D[0, 0]
+print("\n\nE")
+print(E)
 
-Ay = (A[alt, :])[:, alt]  # ! not sure why I have to do it this way
-By = B[alt, 1]
-Cy = C[1, alt]
-Dy = D[1, 1]
+C = np.identity(4)
+D = np.array([[0], [0], [0], [0]])
 
-# Label the plot
-plt.clf()
-plt.suptitle("LQR controllers for vectored thrust aircraft (pvtol-lqr)")
 
-#
-# LQR design
-#
 
-# Start with a diagonal weighting
-Qx1 = np.diag([1, 1, 1, 1, 1, 1])
-Qu1a = np.diag([1, 1])
-K, X, E = lqr(A, B, Qx1, Qu1a)
-K1a = np.matrix(K)
 
-# Close the loop: xdot = Ax - B K (x-xd)
-# Note: python-control requires we do this 1 input at a time
-# H1a = ss(A-B*K1a, B*K1a*concatenate((xd, yd), axis=1), C, D);
-# (T, Y) = step(H1a, T=np.linspace(0,10,100));
+sys = StateSpace(A-B*K, B, C, D)
 
-# TODO: The following equations will need modifying when converting from np.matrix to np.array
-# because the results and even intermediate calculations will be different with numpy arrays
-# For example:
-# Bx = B[lat, 0]
-# Will need to be changed to:
-# Bx = B[lat, 0].reshape(-1, 1)
-# (if we want it to have the same shape as before)
+plt.figure(figsize=(8, 8))
 
-# For reference, here is a list of the correct shapes of these objects:
-# A: (6, 6)
-# B: (6, 2)
-# C: (2, 6)
-# D: (2, 2)
-# xd: (6, 1)
-# yd: (6, 1)
-# Ax: (4, 4)
-# Bx: (4, 1)
-# Cx: (1, 4)
-# Dx: ()
-# Ay: (2, 2)
-# By: (2, 1)
-# Cy: (1, 2)
+# y, t = mt.impulse(sys)
+y, t = mt.step(sys)
+for i in range(4):
+    plt.subplot(2, 2, i+1)
+    plt.plot(t.T, y[:,i,0].T)
+    plt.title(f"Response for {state[i]}")
 
-# Step response for the first input
-H1ax = ss(Ax - Bx*K1a[0, lat], Bx*K1a[0, lat]*xd[lat, :], Cx, Dx)
-Yx, Tx = step(H1ax, T=np.linspace(0, 10, 100))
+plt.tight_layout()
 
-# Step response for the second input
-H1ay = ss(Ay - By*K1a[1, alt], By*K1a[1, alt]*yd[alt, :], Cy, Dy)
-Yy, Ty = step(H1ay, T=np.linspace(0, 10, 100))
 
-plt.subplot(221)
-plt.title("Identity weights")
-# plt.plot(T, Y[:,1, 1], '-', T, Y[:,2, 2], '--')
-plt.plot(Tx.T, Yx.T, '-', Ty.T, Yy.T, '--')
-plt.plot([0, 10], [1, 1], 'k-')
+# plt.figure(figsize=(8, 8))
 
-plt.axis([0, 10, -0.1, 1.4])
-plt.ylabel('position')
-plt.legend(('x', 'y'), loc='lower right')
 
-# Look at different input weightings
-Qu1a = np.diag([1, 1])
-K1a, X, E = lqr(A, B, Qx1, Qu1a)
-H1ax = ss(Ax - Bx*K1a[0, lat], Bx*K1a[0, lat]*xd[lat, :], Cx, Dx)
+# theta = 0
+# x = 0
 
-Qu1b = (40 ** 2)*np.diag([1, 1])
-K1b, X, E = lqr(A, B, Qx1, Qu1b)
-H1bx = ss(Ax - Bx*K1b[0, lat], Bx*K1b[0, lat]*xd[lat, :], Cx, Dx)
+# x_start = x
+# y_start = 0.0
+# x_end = x + L*np.sin(theta)
+# y_end = L*np.cos(theta)
+# ctr = 0
+# def update(frame):
+#     global ctr
+#     ctr += 1
 
-Qu1c = (200 ** 2)*np.diag([1, 1])
-K1c, X, E = lqr(A, B, Qx1, Qu1c)
-H1cx = ss(Ax - Bx*K1c[0, lat], Bx*K1c[0, lat]*xd[lat, :], Cx, Dx)
+#     x = y[ctr, 0, 0]
+#     theta = y[ctr, 1, 0]*1.5
 
-[Y1, T1] = step(H1ax, T=np.linspace(0, 10, 100))
-[Y2, T2] = step(H1bx, T=np.linspace(0, 10, 100))
-[Y3, T3] = step(H1cx, T=np.linspace(0, 10, 100))
+#     x_start = x
+#     y_start = 0.0
+#     x_end = x + L*np.sin(theta)
+#     y_end = L*np.cos(theta)
 
-plt.subplot(222)
-plt.title("Effect of input weights")
-plt.plot(T1.T, Y1.T, 'b-')
-plt.plot(T2.T, Y2.T, 'b-')
-plt.plot(T3.T, Y3.T, 'b-')
-plt.plot([0, 10], [1, 1], 'k-')
+#     plt.clf()
+#     plt.plot([x_start, x_end], [y_start, y_end], 'k-', lw=2)
+#     plt.plot(x_start, y_start, 'ko', ms=25)
+#     plt.plot(x_end, y_end, 'bo', ms=50)
 
-plt.axis([0, 10, -0.1, 1.4])
 
-# arcarrow([1.3, 0.8], [5, 0.45], -6)
-plt.text(5.3, 0.4, 'rho')
+#     # Set the limits of the plot
+#     plt.xlim(-2, 2)
+#     plt.ylim(-0.01, 2*L)
 
-# Output weighting - change Qx to use outputs
-Qx2 = C.T*C
-Qu2 = 0.1*np.diag([1, 1])
-K, X, E = lqr(A, B, Qx2, Qu2)
-K2 = np.matrix(K)
+#     # Set the title of the plot
+#     plt.title("Segway @ timestep = " + str(ctr*dt))
 
-H2x = ss(Ax - Bx*K2[0, lat], Bx*K2[0, lat]*xd[lat, :], Cx, Dx)
-H2y = ss(Ay - By*K2[1, alt], By*K2[1, alt]*yd[alt, :], Cy, Dy)
 
-plt.subplot(223)
-plt.title("Output weighting")
-[Y2x, T2x] = step(H2x, T=np.linspace(0, 10, 100))
-[Y2y, T2y] = step(H2y, T=np.linspace(0, 10, 100))
-plt.plot(T2x.T, Y2x.T, T2y.T, Y2y.T)
-plt.ylabel('position')
-plt.xlabel('time')
-plt.ylabel('position')
-plt.legend(('x', 'y'), loc='lower right')
+# dt = 0.5
+# duration = 10.0
+# anim = FuncAnimation(plt.gcf(), update, frames=np.arange(0, duration, dt), interval=10)
 
-#
-# Physically motivated weighting
-#
-# Shoot for 1 cm error in x, 10 cm error in y.  Try to keep the angle
-# less than 5 degrees in making the adjustments.  Penalize side forces
-# due to loss in efficiency.
-#
+# print(y[:,i,0])
 
-Qx3 = np.diag([100, 10, 2*np.pi/5, 0, 0, 0])
-Qu3 = 0.1*np.diag([1, 10])
-(K, X, E) = lqr(A, B, Qx3, Qu3)
-K3 = np.matrix(K)
-
-H3x = ss(Ax - Bx*K3[0, lat], Bx*K3[0, lat]*xd[lat, :], Cx, Dx)
-H3y = ss(Ay - By*K3[1, alt], By*K3[1, alt]*yd[alt, :], Cy, Dy)
-plt.subplot(224)
-# step(H3x, H3y, 10)
-[Y3x, T3x] = step(H3x, T=np.linspace(0, 10, 100))
-[Y3y, T3y] = step(H3y, T=np.linspace(0, 10, 100))
-plt.plot(T3x.T, Y3x.T, T3y.T, Y3y.T)
-plt.title("Physically motivated weights")
-plt.xlabel('time')
-plt.legend(('x', 'y'), loc='lower right')
-
-if 'PYCONTROL_TEST_EXAMPLES' not in os.environ:
-    plt.show()
+plt.show()

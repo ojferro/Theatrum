@@ -1,2 +1,3 @@
 mujoco==3.3.0
 matplotlib==3.10.1
+control==0.10.1

@@ -169,7 +169,7 @@ class Model:
         return np.array([tangentialAccel, radialAccel])
 
 
-m = mujoco.MjModel.from_xml_path('./cart_pole.xml')
+m = mujoco.MjModel.from_xml_path('./assets/wheeled_biped.xml')
 d = mujoco.MjData(m)
 
 EPISODE_LENGTH_S = 1000.0
@@ -215,7 +215,6 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
     sim_start_time = time.monotonic()
 
     while viewer.is_running() and d.time < EPISODE_LENGTH_S:
-        
         # This must be the first thing in the loop. Every single computation from here on will eat into the delta time between frames.
         if VIZ_IN_REALTIME:
             next_frame_at = time.time_ns() + (1/renderer_fps) * 1_000_000_000
