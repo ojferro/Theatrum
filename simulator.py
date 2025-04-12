@@ -169,7 +169,7 @@ class Model:
         return np.array([tangentialAccel, radialAccel])
 
 
-m = mujoco.MjModel.from_xml_path('./assets/wheeled_biped.xml')
+m = mujoco.MjModel.from_xml_path('./assets/wheeled_biped_servos.xml')
 d = mujoco.MjData(m)
 
 EPISODE_LENGTH_S = 1000.0
@@ -305,7 +305,7 @@ print(f"Simulation physics time: {m.opt.timestep * debug_ctr:.3f} s")
 
 # Visualize data at the end of the run
 
-if True:
+if False:
     print("Showing plots...")
     fig, ax = plt.subplots(2, 3)
     stride = 1

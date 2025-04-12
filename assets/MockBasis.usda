@@ -1,0 +1,214 @@
+#usda 1.0
+(
+    defaultPrim = "Root"
+    upAxis = "Z"
+)
+
+def Xform "Root"
+{
+    def Xform "mock_robot" (
+        apiSchemas = ["PhysicsArticulationRootAPI", "PhysxArticulationAPI"]
+    )
+    {
+        token ui:displayGroup = "Material Graphs"
+        token ui:displayName = "mock_robot"
+        int ui:order = 1024
+        float3 xformOp:rotateXYZ = (0, -0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+
+        def Scope "Looks"
+        {
+            def Material "body"
+            {
+                token outputs:mdl:displacement.connect = </Root/mock_robot/Looks/body/Shader.outputs:out>
+                token outputs:mdl:surface.connect = </Root/mock_robot/Looks/body/Shader.outputs:out>
+                token outputs:mdl:volume.connect = </Root/mock_robot/Looks/body/Shader.outputs:out>
+
+                def Shader "Shader"
+                {
+                    uniform token info:implementationSource = "sourceAsset"
+                    uniform asset info:mdl:sourceAsset = @OmniPBR.mdl@
+                    uniform token info:mdl:sourceAsset:subIdentifier = "OmniPBR"
+                    color3f inputs:diffuse_color_constant = (0.34683195, 0.7805907, 0.108689845) (
+                        customData = {
+                            float3 default = (0.2, 0.2, 0.2)
+                        }
+                        displayGroup = "Albedo"
+                        displayName = "Base Color"
+                        doc = "This is the base color"
+                        hidden = false
+                    )
+                    token outputs:out
+                }
+            }
+
+            def Material "wheel"
+            {
+                token outputs:mdl:displacement.connect = </Root/mock_robot/Looks/wheel/Shader.outputs:out>
+                token outputs:mdl:surface.connect = </Root/mock_robot/Looks/wheel/Shader.outputs:out>
+                token outputs:mdl:volume.connect = </Root/mock_robot/Looks/wheel/Shader.outputs:out>
+
+                def Shader "Shader"
+                {
+                    uniform token info:implementationSource = "sourceAsset"
+                    uniform asset info:mdl:sourceAsset = @OmniPBR.mdl@
+                    uniform token info:mdl:sourceAsset:subIdentifier = "OmniPBR"
+                    color3f inputs:diffuse_color_constant = (0.13626732, 0.29191396, 0.7510549) (
+                        customData = {
+                            float3 default = (0.2, 0.2, 0.2)
+                        }
+                        displayGroup = "Albedo"
+                        displayName = "Base Color"
+                        doc = "This is the base color"
+                        hidden = false
+                    )
+                    token outputs:out
+                }
+            }
+        }
+
+        def Material "PhysicsMaterial" (
+            apiSchemas = ["PhysicsMaterialAPI"]
+        )
+        {
+        }
+
+        def Xform "body" (
+            apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI"]
+        )
+        {
+            bool physics:kinematicEnabled = 0
+            bool physics:rigidBodyEnabled = 1
+            quatd xformOp:orient = (1, 0, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0, 0, 4.5)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def Cube "body" (
+                apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI", "MaterialBindingAPI"]
+            )
+            {
+                float3[] extent = [(-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)]
+                rel material:binding = </Root/mock_robot/Looks/body> (
+                    bindMaterialAs = "weakerThanDescendants"
+                )
+                bool physics:collisionEnabled = 1
+                double size = 1
+                quatd xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (1, 1, 0.5)
+                double3 xformOp:translate = (0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+        }
+
+        def Xform "wheel_left" (
+            apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI"]
+        )
+        {
+            bool physics:kinematicEnabled = 0
+            bool physics:rigidBodyEnabled = 1
+            quatd xformOp:orient = (0.7071067811865476, 0.7071067811865475, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0, 1.5, 1)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def Cylinder "wheel_left" (
+                apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI", "MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)]
+                double height = 1
+                rel material:binding = </Root/mock_robot/Looks/wheel> (
+                    bindMaterialAs = "weakerThanDescendants"
+                )
+                rel material:binding:physics = </Root/mock_robot/PhysicsMaterial> (
+                    bindMaterialAs = "weakerThanDescendants"
+                )
+                bool physics:collisionEnabled = 1
+                double radius = 0.5
+                custom bool refinementEnableOverride = 1
+                custom int refinementLevel = 2
+                quatd xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (1, 1, 0.5)
+                double3 xformOp:translate = (0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+        }
+
+        def Xform "wheel_right" (
+            apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI"]
+        )
+        {
+            bool physics:kinematicEnabled = 0
+            bool physics:rigidBodyEnabled = 1
+            quatd xformOp:orient = (0.7071067811865476, 0.7071067811865475, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0, -1.5, 1)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def Cylinder "wheel_right" (
+                apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI", "MaterialBindingAPI"]
+            )
+            {
+                uniform token axis = "Z"
+                float3[] extent = [(-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)]
+                double height = 1
+                rel material:binding = </Root/mock_robot/Looks/wheel> (
+                    bindMaterialAs = "weakerThanDescendants"
+                )
+                rel material:binding:physics = </Root/mock_robot/PhysicsMaterial> (
+                    bindMaterialAs = "weakerThanDescendants"
+                )
+                bool physics:collisionEnabled = 1
+                double radius = 0.5
+                custom bool refinementEnableOverride = 1
+                custom int refinementLevel = 2
+                quatd xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (1, 1, 0.5)
+                double3 xformOp:translate = (0, 0, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+        }
+
+        def Scope "Joints"
+        {
+            def PhysicsRevoluteJoint "wheel_joint_right" (
+                apiSchemas = ["PhysicsDriveAPI:angular"]
+            )
+            {
+                float drive:angular:physics:damping = 10000
+                float drive:angular:physics:targetVelocity = 0
+                uniform token physics:axis = "Y"
+                rel physics:body0 = </Root/mock_robot/body/body>
+                rel physics:body1 = </Root/mock_robot/wheel_right/wheel_right>
+                float physics:breakForce = inf
+                float physics:breakTorque = inf
+                point3f physics:localPos0 = (0, -1.5, -7)
+                point3f physics:localPos1 = (0, 0, 0)
+                quatf physics:localRot0 = (1, 6.664002e-8, 0, 0)
+                quatf physics:localRot1 = (0.70710677, -0.70710677, 0, 0)
+            }
+
+            def PhysicsRevoluteJoint "wheel_joint_left" (
+                apiSchemas = ["PhysicsDriveAPI:angular"]
+            )
+            {
+                float drive:angular:physics:damping = 10000
+                float drive:angular:physics:targetVelocity = 0
+                uniform token physics:axis = "Y"
+                rel physics:body0 = </Root/mock_robot/body/body>
+                rel physics:body1 = </Root/mock_robot/wheel_left/wheel_left>
+                float physics:breakForce = inf
+                float physics:breakTorque = inf
+                point3f physics:localPos0 = (0, 1.5, -7)
+                point3f physics:localPos1 = (0, 0, 0)
+                quatf physics:localRot0 = (1, 6.664002e-8, 0, 0)
+                quatf physics:localRot1 = (0.70710677, -0.70710677, 0, 0)
+            }
+        }
+    }
+}
+
