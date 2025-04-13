@@ -28,6 +28,9 @@ parser.add_argument("--seed", type=int, default=None, help="Seed used for the en
 parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
+parser.add_argument("--use_wandb", action="store_true", default=False, help="Use weights and biases logging.")
+parser.add_argument("--logging_freq", type=int, default=50, help="Tensorboard logging frequency.")
+parser.add_argument("--checkpoint_freq", type=int, default=1000, help="Save checkpoint every n iterations.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint to resume training.")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument(
@@ -149,6 +152,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # set directory into agent config
     agent_cfg["agent"]["experiment"]["directory"] = log_root_path
     agent_cfg["agent"]["experiment"]["experiment_name"] = log_dir
+
+    # Save checkpoint every n iterations
+    if args_cli.checkpoint_freq > 0:
+        agent_cfg["agent"]["experiment"]["checkpoint_interval"] = args_cli.checkpoint_freq # interval for checkpoints (timesteps)
+
+    # Overwrite the tensorboard logging frequency
+    if args_cli.logging_freq > 0:
+        agent_cfg["agent"]["experiment"]["write_interval"] = args_cli.logging_freq # interval for checkpoints (timesteps)
+
+    if args_cli.use_wandb:
+        agent_cfg["agent"]["experiment"]["wandb"] = True
+        agent_cfg["agent"]["experiment"]["wandb_kwargs"] = {"mode": "offline"}
+
     # update log_dir
     log_dir = os.path.join(log_root_path, log_dir)
 

@@ -8,6 +8,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
@@ -25,12 +26,14 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.envs import mdp
 
-import basis_config.custom_terminations as customterms
+import basis_config.custom_metrics as custom_metrics
 
 """Rest everything follows."""
 BASIS_HEIGHT = 0.33 # m
 WHEEL_RADIUS = 0.03 # m
-DESIRED_LINEAR_VEL = 0.5 # m/s
+# DESIRED_LINEAR_VEL = 0.5 # m/s
+MAX_WHEEL_SPEED = 500.0 # in scale units
+USE_CURRICULUM = True
 
 BASIS_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
@@ -110,7 +113,7 @@ class ActionsCfg:
 
     # scale = 360.0 * DESIRED_LINEAR_VEL / (2*math.pi*WHEEL_RADIUS)
     # print(f"Lin vel scale: {scale}")
-    joint_velocities = mdp.JointVelocityActionCfg(asset_name="robot", joint_names=["l_wheel_joint", "r_wheel_joint"], scale=200.0)
+    joint_velocities = mdp.JointVelocityActionCfg(asset_name="robot", joint_names=["l_wheel_joint", "r_wheel_joint"], scale=MAX_WHEEL_SPEED)
     # joint_positions = mdp.JointPositionActionCfg(asset_name="robot", joint_names=["l_wheel_joint", "wheel_joint_right"], scale=1.0)
 
 @configclass
@@ -118,22 +121,23 @@ class CommandsCfg:
     """Command terms for the MDP."""
 
     # no commands for this MDP
-    null = mdp.NullCommandCfg()
+    # null = mdp.NullCommandCfg()
 
-    # base_velocity = mdp.UniformVelocityCommandCfg(
-    #     asset_name="robot",
-    #     resampling_time_range=(10.0, 10.0),
-    #     rel_standing_envs=0.5,
-    #     rel_heading_envs=0.0,
-    #     heading_command=False,
-    #     debug_vis=True,
-    #     ranges=mdp.UniformVelocityCommandCfg.Ranges(
-    #         lin_vel_x=(-1.0, 1.0),
-    #         # lin_vel_y=None, #(0,0),
-    #         ang_vel_z=(-1.0, 1.0),
-    #         # heading=(-0.1,0.1)
-    #     ),
-    # )
+    # Cannot rename without changing other instances of "base_velocity" (e.g. in custom_metrics)
+    base_velocity = mdp.UniformVelocityCommandCfg(
+        asset_name="robot",
+        resampling_time_range=(2.0,4.0),
+        rel_standing_envs=0.1,
+        rel_heading_envs=1.0,
+        heading_command=True,
+        debug_vis=True,
+        ranges=mdp.UniformVelocityCommandCfg.Ranges(
+            lin_vel_x=(-2.0, 2.0),
+            lin_vel_y=(0,0),
+            ang_vel_z=(0,0), #(-1.0, 1.0),
+            heading=(-math.pi/2, math.pi/2)
+        ),
+    )
 
 
 
@@ -151,6 +155,7 @@ class ObservationsCfg:
         base_height = ObsTerm(func=mdp.base_pos_z)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
         actions = ObsTerm(func=mdp.last_action)
+        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
 
         # velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
 
@@ -205,11 +210,22 @@ class EventCfg:
         params={
             "pose_range": {"pitch": (-0.15,0.15)},
             # "pose_range": {"roll": (-0.10,0.10)},
-            "velocity_range": {}, #{"pitch": (-0.1, 0.1), "yaw": (-0.1, 0.1),},
+            "velocity_range": {"pitch": (-0.1, 0.1), "yaw": (-0.1, 0.1),},
             "asset_cfg": SceneEntityCfg("robot"),
         },
     )
 
+    # Random perturbations
+    # interval
+    push_robot = EventTerm(
+        func=mdp.push_by_setting_velocity,
+        mode="interval",
+        interval_range_s=(0.0,2.0),
+        params={
+            "velocity_range": {"x": (-0.5, 0.5), "pitch": (-0.5,0.5),"yaw": (-0.5, 0.5)},
+            "asset_cfg": SceneEntityCfg("robot")
+            },
+    )
 
 @configclass
 class RewardsCfg:
@@ -225,30 +241,79 @@ class RewardsCfg:
         weight=-1.0,
         params={"asset_cfg": SceneEntityCfg("robot"), "target_height": BASIS_HEIGHT},
         )
-    # pole_pos = RewTerm(
-    #     func=mdp.flat_orientation_l2,
-    #     weight=-1.0,
-    #     params={"asset_cfg": SceneEntityCfg("robot")},
-    #     )
-
-    
-    
-    # print(f"!!! {SceneEntityCfg('robot').data.root_pos_w[:, 2]} !!!!")
-    # (4) Low velocity
+    # (4) Low velocity regularization
     wheel_joint_left_vel = RewTerm(
-        func=mdp.joint_vel_l1,
-        weight=-0.05,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["l_wheel_joint"])},
+        func=custom_metrics.joint_vel_truncated_l2,
+        weight=-0.5,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["l_wheel_joint"]),
+            "max_penalty": 10,
+            "max_penalty_domain_upper_bound": MAX_WHEEL_SPEED/3},
     )
     wheel_joint_right_vel = RewTerm(
-        func=mdp.joint_vel_l1,
-        weight=-0.05,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["r_wheel_joint"])},
+        func=custom_metrics.joint_vel_truncated_l2,
+        weight=-0.5,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["r_wheel_joint"]),
+            "max_penalty": 10,
+            "max_penalty_domain_upper_bound": MAX_WHEEL_SPEED/3},
     )
+    # (5) Tracking velocity commands
+    # These have very low weights until ~ 3000 steps in, see curriculum below
+    base_angular_velocity = RewTerm(
+        func=custom_metrics.base_angular_velocity_reward,
+        weight=0.01,
+        params={"std": 2.0, "asset_cfg": SceneEntityCfg("robot")},
+    )
+    base_linear_velocity = RewTerm(
+        func=custom_metrics.base_linear_velocity_reward,
+        weight=0.01,
+        params={"std": 1.0, "ramp_rate": 2.0, "ramp_at_vel": 0.3, "asset_cfg": SceneEntityCfg("robot")},
+    )
+
+    # (6) Penalize for wheels not touching the ground
+    wheels_on_ground = RewTerm(
+        func = custom_metrics.lost_contact,
+        weight=-0.1,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*wheel_link"),
+        }
+    )
+
+@configclass
+class CurriculumCfg:
+    """Curriculum terms for the MDP."""
+
+    # Decrease importance of base height after 3000 steps
+    base_height_cur = CurrTerm(
+        func=mdp.modify_reward_weight, params={"term_name": "base_height", "weight": -1e-3, "num_steps": 3_000}
+    )
+
+    # Start rewarding for following commands once it's able to balance
+    base_angular_velocity_cur = CurrTerm(
+        func=mdp.modify_reward_weight, params={"term_name": "base_angular_velocity", "weight": 10, "num_steps": 3_000}
+    )
+
+    base_linear_velocity_cur = CurrTerm(
+        func=mdp.modify_reward_weight, params={"term_name": "base_linear_velocity", "weight": 10, "num_steps": 3_000}
+    )
+
+    # Regularize wheel vel less heavily once it's able to balance, so that it can follow commands
+    wheel_joint_left_vel_cur = CurrTerm(
+        func=mdp.modify_reward_weight, params={"term_name": "wheel_joint_left_vel", "weight": -0.1, "num_steps": 2_000}
+    )
+    wheel_joint_right_vel_cur = CurrTerm(
+        func=mdp.modify_reward_weight, params={"term_name": "wheel_joint_right_vel", "weight": -0.1, "num_steps": 2_000}
+    )
+
+
 
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
+    
+    if not USE_CURRICULUM:
+        pass
 
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -257,19 +322,13 @@ class TerminationsCfg:
         func=mdp.bad_orientation,
         params={"asset_cfg": SceneEntityCfg("robot"), "limit_angle": math.pi/3},
     )  
-    # (3) Wheels lost contact
+    # (3) Wheels lost contact. Important at the beginning, less important later on.
     robot_on_ground = DoneTerm(
-        func=customterms.lost_contact,
+        func=custom_metrics.prolonged_lost_contact,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*wheel_link"),
         }
     )
-
-@configclass
-class CurriculumCfg:
-    """Configuration for the curriculum."""
-
-    pass
 
 @configclass
 class BasisEnvCfg(ManagerBasedRLEnvCfg):
@@ -295,7 +354,7 @@ class BasisEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         # simulation settings
         self.sim.dt = 0.005  # simulation timestep -> 200 Hz physics
-        self.episode_length_s = 5
+        self.episode_length_s = 10
         # viewer settings
         self.viewer.eye = (0.0, 8.0, 5.0)
         # simulation settings
