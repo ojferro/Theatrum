@@ -73,6 +73,8 @@ def Xform "Root"
             apiSchemas = ["PhysicsMaterialAPI"]
         )
         {
+            float physics:dynamicFriction = 0.8
+            float physics:staticFriction = 0.9
         }
 
         def Xform "body" (
@@ -132,7 +134,7 @@ def Xform "Root"
                 custom bool refinementEnableOverride = 1
                 custom int refinementLevel = 2
                 quatd xformOp:orient = (1, 0, 0, 0)
-                double3 xformOp:scale = (1, 1, 0.5)
+                double3 xformOp:scale = (1, 1, 0.2)
                 double3 xformOp:translate = (0, 0, 0)
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
             }
@@ -167,7 +169,7 @@ def Xform "Root"
                 custom bool refinementEnableOverride = 1
                 custom int refinementLevel = 2
                 quatd xformOp:orient = (1, 0, 0, 0)
-                double3 xformOp:scale = (1, 1, 0.5)
+                double3 xformOp:scale = (1, 1, 0.2)
                 double3 xformOp:translate = (0, 0, 0)
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
             }
