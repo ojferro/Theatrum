@@ -2,7 +2,7 @@
 
 ## IsaacLab Simulation
 
-![alt text](iamges/CoverPhoto.png)
+![alt text](images/CoverPhoto.png)
 
 ## MuJoCo Simulation
 ![alt text](images/CoverPhotoMuJoCo.png)
