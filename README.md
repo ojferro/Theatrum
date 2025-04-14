@@ -1,7 +1,12 @@
+# Wheeled Biped Robot
+
+This repo contains experiments using reinforcement learning to control a bipedal wheeled robot in simulation. 
+
 ![alt text](images/CoverPhotoTraining.png)
 <!-- ![alt text](images/CoverPhoto.png) -->
-# Wheeled Biped Simulation
-This repo contains experiments using reinforcement learning to control a bipedal wheeled robot in simulation. Training is done using IsaacLab and the skrl library (PPO agent).
+
+
+Training is done using IsaacLab and the skrl and sb3 libraries.
 
 ### Key features:
 
