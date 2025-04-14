@@ -32,12 +32,12 @@ import basis_config.custom_metrics as custom_metrics
 BASIS_HEIGHT = 0.33 # m
 WHEEL_RADIUS = 0.03 # m
 # DESIRED_LINEAR_VEL = 0.5 # m/s
-MAX_WHEEL_SPEED = 500.0 # in scale units
-USE_CURRICULUM = True
+MAX_WHEEL_SPEED = 1000.0 # in scale units
+RANDOM_PERTURBATIONS = True
 
 BASIS_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="C:/Users/ojfer/Documents/Projects/Robotics/Theatrum/assets/BasisMK2.usda",
+        usd_path="C:/Users/ojfer/Documents/Projects/Robotics/Theatrum/assets/BasisMK3.usda",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
@@ -60,14 +60,14 @@ BASIS_CFG = ArticulationCfg(
     actuators={
         "l_wheel_actuator": ImplicitActuatorCfg(
             joint_names_expr=["l_wheel_joint"],
-            effort_limit=400.0,
+            # effort_limit=400.0,
             velocity_limit=1000.0,
             stiffness=0.0,
             damping=100_000.0,
         ),
         "r_wheel_actuator": ImplicitActuatorCfg(
             joint_names_expr=["r_wheel_joint"],
-            effort_limit=400.0,
+            # effort_limit=400.0,
             velocity_limit=1000.0,
             stiffness=0.0,
             damping=100_000.0,
@@ -126,16 +126,16 @@ class CommandsCfg:
     # Cannot rename without changing other instances of "base_velocity" (e.g. in custom_metrics)
     base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
-        resampling_time_range=(2.0,4.0),
+        resampling_time_range=(10.0,10.0),
         rel_standing_envs=0.1,
         rel_heading_envs=1.0,
         heading_command=True,
-        debug_vis=True,
+        debug_vis=False,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-2.0, 2.0),
+            lin_vel_x=(-1.5, 1.5),
             lin_vel_y=(0,0),
-            ang_vel_z=(0,0), #(-1.0, 1.0),
-            heading=(-math.pi/2, math.pi/2)
+            ang_vel_z=(-1.0, 1.0),
+            heading=(-math.pi, math.pi)
         ),
     )
 
@@ -155,9 +155,7 @@ class ObservationsCfg:
         base_height = ObsTerm(func=mdp.base_pos_z)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
         actions = ObsTerm(func=mdp.last_action)
-        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-
-        # velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        velocity_commands = ObsTerm(func=custom_metrics.generated_commands, params={"command_name": "base_velocity"})
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -217,22 +215,23 @@ class EventCfg:
 
     # Random perturbations
     # interval
-    push_robot = EventTerm(
-        func=mdp.push_by_setting_velocity,
-        mode="interval",
-        interval_range_s=(0.0,2.0),
-        params={
-            "velocity_range": {"x": (-0.5, 0.5), "pitch": (-0.5,0.5),"yaw": (-0.5, 0.5)},
-            "asset_cfg": SceneEntityCfg("robot")
-            },
-    )
+    if RANDOM_PERTURBATIONS:
+        push_robot = EventTerm(
+            func=mdp.push_by_setting_velocity,
+            mode="interval",
+            interval_range_s=(2.0,5.0),
+            params={
+                "velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "pitch": (-0.5,0.5),"yaw": (-0.5, 0.5)},
+                "asset_cfg": SceneEntityCfg("robot")
+                },
+        )
 
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
 
     # (1) Constant running reward
-    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+    alive = RewTerm(func=mdp.is_alive, weight=4.0)
     # (2) Failure penalty
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
     # (3) Primary task: keep pole upright
@@ -261,14 +260,14 @@ class RewardsCfg:
     # (5) Tracking velocity commands
     # These have very low weights until ~ 3000 steps in, see curriculum below
     base_angular_velocity = RewTerm(
-        func=custom_metrics.base_angular_velocity_reward,
-        weight=0.01,
-        params={"std": 2.0, "asset_cfg": SceneEntityCfg("robot")},
+        func=custom_metrics.base_angular_velocity_penalty_l1,
+        weight=-1.0,
+        params={"max_penalty": 1.0, "asset_cfg": SceneEntityCfg("robot")},
     )
     base_linear_velocity = RewTerm(
-        func=custom_metrics.base_linear_velocity_reward,
-        weight=0.01,
-        params={"std": 1.0, "ramp_rate": 2.0, "ramp_at_vel": 0.3, "asset_cfg": SceneEntityCfg("robot")},
+        func=custom_metrics.base_linear_velocity_penalty_l1,
+        weight=-1.0,
+        params={"max_penalty": 1.0, "asset_cfg": SceneEntityCfg("robot")},
     )
 
     # (6) Penalize for wheels not touching the ground
@@ -279,6 +278,13 @@ class RewardsCfg:
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*wheel_link"),
         }
     )
+
+    # DBG
+    # dbg = RewTerm(
+    #     func=custom_metrics.joint_efforts,
+    #     weight = 0.000001,
+    #     params={"asset_cfg": SceneEntityCfg("robot")},
+    # )
 
 @configclass
 class CurriculumCfg:
@@ -291,11 +297,11 @@ class CurriculumCfg:
 
     # Start rewarding for following commands once it's able to balance
     base_angular_velocity_cur = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "base_angular_velocity", "weight": 10, "num_steps": 3_000}
+        func=mdp.modify_reward_weight, params={"term_name": "base_angular_velocity", "weight": -4, "num_steps": 3_000}
     )
 
     base_linear_velocity_cur = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "base_linear_velocity", "weight": 10, "num_steps": 3_000}
+        func=mdp.modify_reward_weight, params={"term_name": "base_linear_velocity", "weight": -4, "num_steps": 3_000}
     )
 
     # Regularize wheel vel less heavily once it's able to balance, so that it can follow commands
@@ -311,9 +317,6 @@ class CurriculumCfg:
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
-    
-    if not USE_CURRICULUM:
-        pass
 
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
