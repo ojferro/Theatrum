@@ -39,6 +39,7 @@ Still in early stages — things will break :)
 
 ## IsaacLab Simulation
 
+Training in Isaac Lab:
 ![Training](images/trainingGIF.gif)
 
 
