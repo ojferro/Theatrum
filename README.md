@@ -1,12 +1,9 @@
-# Wheeled Biped Robot
-
-This repo contains experiments using reinforcement learning to control a bipedal wheeled robot in simulation. 
-
 ![alt text](images/CoverPhotoTraining.png)
 <!-- ![alt text](images/CoverPhoto.png) -->
 
+# Wheeled Biped Robot
 
-Training is done using IsaacLab and the skrl and sb3 libraries.
+This repo contains experiments using reinforcement learning to control a bipedal wheeled robot in simulation. Training is done using IsaacLab and the skrl and sb3 libraries.
 
 ### Key features:
 
@@ -26,6 +23,7 @@ The real robot repo — all embedded software, motor drivers, CAN communication,
 - RTOS version of the embedded code, rougher around the edges [HERE](https://github.com/ojferro/NucleoRTOS)
 - Realtime data visualization from on-board sensors (IMU, battery, motor pos/val/torque) [HERE](https://github.com/ojferro/MissionControl)
 
+
 ### How To's
 To train:
 ```
@@ -40,6 +38,9 @@ isaaclab/play_basis_skrl.py --task Basis_Env_v0 --num_envs 256 --checkpoint <pat
 Still in early stages — things will break :)
 
 ## IsaacLab Simulation
+
+![Training](images/trainingGIF.gif)
+
 
 See `isaaclab/` subdir for simulation configs, training and evaluation scripts.
 
@@ -61,3 +62,6 @@ This version contains Kalman and Complementary filters, LQR solvers, and a lot m
 
 ### Tuned LQR system response
 ![alt text](images/LQR_solution_plots.png)
+
+### BASIS, in the flesh (...PLA):
+![alt text](images/PhysicalRobot.png)
