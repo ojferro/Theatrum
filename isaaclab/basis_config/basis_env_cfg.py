@@ -34,6 +34,7 @@ WHEEL_RADIUS = 0.03 # m
 # DESIRED_LINEAR_VEL = 0.5 # m/s
 MAX_WHEEL_SPEED = 1000.0 # in scale units
 RANDOM_PERTURBATIONS = True
+EPISODE_LEN = 15.0 #s 
 
 BASIS_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
@@ -41,10 +42,8 @@ BASIS_CFG = ArticulationCfg(
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            # max_depenetration_velocity=100.0,
-            # enable_gyroscopic_forces=True,
+            max_linear_velocity=1000.0, # m/s
+            max_angular_velocity=1000.0, # deg/s
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
@@ -61,14 +60,14 @@ BASIS_CFG = ArticulationCfg(
         "l_wheel_actuator": ImplicitActuatorCfg(
             joint_names_expr=["l_wheel_joint"],
             # effort_limit=400.0,
-            velocity_limit=1000.0,
+            # velocity_limit=1000.0,
             stiffness=0.0,
             damping=100_000.0,
         ),
         "r_wheel_actuator": ImplicitActuatorCfg(
             joint_names_expr=["r_wheel_joint"],
             # effort_limit=400.0,
-            velocity_limit=1000.0,
+            # velocity_limit=1000.0,
             stiffness=0.0,
             damping=100_000.0,
         ),
@@ -126,7 +125,7 @@ class CommandsCfg:
     # Cannot rename without changing other instances of "base_velocity" (e.g. in custom_metrics)
     base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
-        resampling_time_range=(10.0,10.0),
+        resampling_time_range=(EPISODE_LEN, EPISODE_LEN),
         rel_standing_envs=0.1,
         rel_heading_envs=1.0,
         heading_command=True,
@@ -152,8 +151,8 @@ class ObservationsCfg:
         # observation terms (order preserved)
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
-        base_height = ObsTerm(func=mdp.base_pos_z)
-        projected_gravity = ObsTerm(func=mdp.projected_gravity)
+        # base_height = ObsTerm(func=mdp.base_pos_z)
+        projected_gravity = ObsTerm(func=custom_metrics.projected_gravity)
         actions = ObsTerm(func=mdp.last_action)
         velocity_commands = ObsTerm(func=custom_metrics.generated_commands, params={"command_name": "base_velocity"})
 
@@ -233,44 +232,37 @@ class RewardsCfg:
     # (1) Constant running reward
     alive = RewTerm(func=mdp.is_alive, weight=4.0)
     # (2) Failure penalty
-    terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
+    terminating = RewTerm(func=mdp.is_terminated, weight=-5.0)
     # (3) Primary task: keep pole upright
-    base_height = RewTerm(
-        func=mdp.base_height_l2,
-        weight=-1.0,
-        params={"asset_cfg": SceneEntityCfg("robot"), "target_height": BASIS_HEIGHT},
-        )
-    # (4) Low velocity regularization
-    wheel_joint_left_vel = RewTerm(
-        func=custom_metrics.joint_vel_truncated_l2,
-        weight=-0.5,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["l_wheel_joint"]),
-            "max_penalty": 10,
-            "max_penalty_domain_upper_bound": MAX_WHEEL_SPEED/3},
-    )
-    wheel_joint_right_vel = RewTerm(
-        func=custom_metrics.joint_vel_truncated_l2,
-        weight=-0.5,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["r_wheel_joint"]),
-            "max_penalty": 10,
-            "max_penalty_domain_upper_bound": MAX_WHEEL_SPEED/3},
-    )
-    # (5) Tracking velocity commands
+    # base_height = RewTerm(
+    #     func=mdp.base_height_l2,
+    #     weight=-1.0,
+    #     params={"asset_cfg": SceneEntityCfg("robot"), "target_height": BASIS_HEIGHT},
+    #     )
+
+    angle_penalty = RewTerm(
+        func=custom_metrics.angle_penalty,
+        weight=-10.0,
+        params={"asset_cfg": SceneEntityCfg("robot"), "max_penalty_angle_rad": math.radians(45)},
+    ) 
+    
+    # (4) Tracking velocity commands
     # These have very low weights until ~ 3000 steps in, see curriculum below
     base_angular_velocity = RewTerm(
         func=custom_metrics.base_angular_velocity_penalty_l1,
-        weight=-1.0,
+        weight=-0.01,
         params={"max_penalty": 1.0, "asset_cfg": SceneEntityCfg("robot")},
     )
     base_linear_velocity = RewTerm(
         func=custom_metrics.base_linear_velocity_penalty_l1,
-        weight=-1.0,
+        weight=-0.01,
         params={"max_penalty": 1.0, "asset_cfg": SceneEntityCfg("robot")},
     )
 
-    # (6) Penalize for wheels not touching the ground
+    # (5) Penalize wheel slip
+
+    # (6) Regularization
+    # Penalize for wheels not touching the ground
     wheels_on_ground = RewTerm(
         func = custom_metrics.lost_contact,
         weight=-0.1,
@@ -278,6 +270,30 @@ class RewardsCfg:
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*wheel_link"),
         }
     )
+
+    # Regularize wheel speed
+    wheel_joint_left_vel = RewTerm(
+        func=custom_metrics.joint_vel_truncated_l2,
+        weight=-1.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["l_wheel_joint"]),
+            "max_penalty": 10,
+            "max_penalty_domain_upper_bound": MAX_WHEEL_SPEED/3},
+    )
+    wheel_joint_right_vel = RewTerm(
+        func=custom_metrics.joint_vel_truncated_l2,
+        weight=-1.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["r_wheel_joint"]),
+            "max_penalty": 10,
+            "max_penalty_domain_upper_bound": MAX_WHEEL_SPEED/3},
+    )
+
+    # falling_penalty = RewTerm(
+    #     func=mdp.bad_orientation,
+    #     weight=-10.0,
+    #     params={"asset_cfg": SceneEntityCfg("robot"), "limit_angle": math.radians(75)},
+    # )  
 
     # DBG
     # dbg = RewTerm(
@@ -291,26 +307,26 @@ class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
     # Decrease importance of base height after 3000 steps
-    base_height_cur = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "base_height", "weight": -1e-3, "num_steps": 3_000}
-    )
+    # base_height_cur = CurrTerm(
+    #     func=mdp.modify_reward_weight, params={"term_name": "base_height", "weight": -1e-3, "num_steps": 3_000}
+    # )
 
     # Start rewarding for following commands once it's able to balance
-    base_angular_velocity_cur = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "base_angular_velocity", "weight": -4, "num_steps": 3_000}
-    )
+    # base_angular_velocity_cur = CurrTerm(
+    #     func=mdp.modify_reward_weight, params={"term_name": "base_angular_velocity", "weight": -1, "num_steps": 3_000}
+    # )
 
-    base_linear_velocity_cur = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "base_linear_velocity", "weight": -4, "num_steps": 3_000}
-    )
+    # base_linear_velocity_cur = CurrTerm(
+    #     func=mdp.modify_reward_weight, params={"term_name": "base_linear_velocity", "weight": -1, "num_steps": 3_000}
+    # )
 
-    # Regularize wheel vel less heavily once it's able to balance, so that it can follow commands
-    wheel_joint_left_vel_cur = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "wheel_joint_left_vel", "weight": -0.1, "num_steps": 2_000}
-    )
-    wheel_joint_right_vel_cur = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "wheel_joint_right_vel", "weight": -0.1, "num_steps": 2_000}
-    )
+    # # Regularize wheel vel less heavily once it's able to balance, so that it can follow commands
+    # wheel_joint_left_vel_cur = CurrTerm(
+    #     func=mdp.modify_reward_weight, params={"term_name": "wheel_joint_left_vel", "weight": -0.1, "num_steps": 2_000}
+    # )
+    # wheel_joint_right_vel_cur = CurrTerm(
+    #     func=mdp.modify_reward_weight, params={"term_name": "wheel_joint_right_vel", "weight": -0.1, "num_steps": 2_000}
+    # )
 
 
 
@@ -323,7 +339,7 @@ class TerminationsCfg:
     # (2) Cart out of bounds
     robot_within_inclination_bounds = DoneTerm(
         func=mdp.bad_orientation,
-        params={"asset_cfg": SceneEntityCfg("robot"), "limit_angle": math.pi/3},
+        params={"asset_cfg": SceneEntityCfg("robot"), "limit_angle": math.radians(80)},
     )  
     # (3) Wheels lost contact. Important at the beginning, less important later on.
     robot_on_ground = DoneTerm(
@@ -357,7 +373,7 @@ class BasisEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         # simulation settings
         self.sim.dt = 0.005  # simulation timestep -> 200 Hz physics
-        self.episode_length_s = 10
+        self.episode_length_s = EPISODE_LEN
         # viewer settings
         self.viewer.eye = (0.0, 8.0, 5.0)
         # simulation settings

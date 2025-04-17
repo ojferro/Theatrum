@@ -99,6 +99,33 @@ def generated_commands(env: ManagerBasedRLEnv, command_name: str) -> torch.Tenso
 
     return cmd
 
+def angle_penalty(
+    env: ManagerBasedRLEnv, max_penalty_angle_rad: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Penalize from deviation from upright.
+
+    Returns 0 penalty if upright, 1 if angle is max_penalty_angle_rad, >1 if angle exceeds max_penalty_angle_rad
+
+    This is computed by checking the angle between the projected gravity vector and the z-axis.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    angle_rad = torch.acos(-asset.data.projected_gravity_b[:, 2]).abs()
+
+    return angle_rad/max_penalty_angle_rad
+
+def projected_gravity(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Gravity projection on the asset's root frame."""
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    gravity = asset.data.projected_gravity_b
+
+    angle_deg = torch.rad2deg(torch.acos(-gravity[:, 2]).abs())
+
+    # import pdb; pdb.set_trace()
+
+    return gravity
 
 
 # dbg
