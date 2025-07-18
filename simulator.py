@@ -35,16 +35,31 @@ class LQR:
     # K = np.array([[22.36, 55.34166306, 14.24434334, 9.09960571]])
 
     # K = np.array([[7.07106781, 37.54403075,  6.2056408 ,  5.98156092]])
-    K = np.array([[3.16227766, 31.53989481,  3.65425785,  4.92520868]])
+    # K = np.array([[3.16227766, 31.53989481,  3.65425785,  4.92520868]])
+    
+
+
+    # K = np.array([[2.23606798, 32.2614986 ,  3.8435914 ,  4.95521541]]) # Works well
+    # K = np.array([[0, 32.2614986 ,  3.8435914 ,  4.95521541]]) # Works well for velocity tracking
+
+
+    # Read np array from file
+    K = np.load('K.npy')
+
+    print("K = ", K)
     
 
     dt = 0.001
     prev_time = time.time()
+    start_time = time.time()
 
     state_dbg = np.array([0,0,0,0])
 
-    position_setpoint = 0.0
-    velocity_setpoint = 0.0
+    position_setpoint = 0.00
+    velocity_setpoint = 0.0 / 0.03
+
+    position_control = True
+    velocity_control = not position_control
 
     def __init__(self, dt):
         self.dt = dt
@@ -62,7 +77,18 @@ class LQR:
 
         # For future reference, one of the things that was wrong was that the order of the state vars here vs in the LQR solver was different...
 
-        return np.array([x, theta, x_dot, theta_dot]) - np.array([self.position_setpoint, 0, self.velocity_setpoint, 0])
+        # self.prev_time = time.time() - self.start_time
+        # print(self.prev_time)
+        # self.velocity_setpoint = 1.00 / 0.03 * np.cos(self.prev_time)
+        print(np.array([x, theta, x_dot, theta_dot]) - np.array([self.position_setpoint, 0, self.velocity_setpoint, 0]))
+
+        x_err = x - self.position_setpoint * self.position_control
+        theta_err = theta
+        x_dot_err = x_dot - self.velocity_setpoint * self.velocity_control
+        theta_dot_err = theta_dot
+        
+        return np.array([x_err, theta_err, x_dot_err, theta_dot_err])
+        # return np.array([x, theta, x_dot, theta_dot]) - np.array([self.position_setpoint, 0, self.velocity_setpoint, 0])
         # return np.array([x, x_dot, theta, theta_dot])
     
     def step(self, angle_sensor, position_sensor, velocity_sensor, ang_velocity_sensor):
@@ -93,6 +119,7 @@ class ComplementaryFilter:
         self.alpha = alpha
 
         self.pitch = 0.0
+        self.pitch_correction_offset = -4.0 * np.pi/180.0
 
     def calculate_angle_from_accelerometer(self, accel_data, dynamic_accel_est):
         # Extract components
@@ -124,7 +151,7 @@ class ComplementaryFilter:
         self.pitch = self.alpha * (self.pitch + gyro_angle_pitch) + (1 - self.alpha) * accel_angle_pitch
         
         # Negate to match model convention
-        return self.pitch
+        return self.pitch + self.pitch_correction_offset
 
 class TemporalFilter:
     def __init__(self, alpha=0.9, init_val=0):
@@ -264,11 +291,12 @@ class Model:
         return np.array([tangentialAccel, radialAccel])
 
 
-m = mujoco.MjModel.from_xml_path('./cart_pole.xml')
+m = mujoco.MjModel.from_xml_path('./cart_pole_simplified.xml')
+# m = mujoco.MjModel.from_xml_path('./cart_pole.xml')
 d = mujoco.MjData(m)
 
 EPISODE_LENGTH_S = 1000.0
-VIZ_IN_REALTIME = True
+VIZ_IN_REALTIME = False
 # print(f"Timestep {m.opt.timestep}")
 
 times_dbg = np.array([])
@@ -328,6 +356,9 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
         # If performing more than this, it would appear as if the simulation were sped up
         for _ in range(physics_updates_per_frame):
             mujoco.mj_step(m, d)
+
+
+            # time.sleep(1000)
             debug_ctr += 1
 
             # accel_angle = calculate_angle_from_accelerometer(d.sensor('accelerometer').data)
@@ -352,8 +383,8 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
 
             wheel_angular_position = d.sensor('wheel_pos').data[0]
             wheel_angular_velocity = d.sensor('wheel_vel').data[0]  + np.random.normal(0, 0.01)
-            x = wheel_angular_position * 0.03
-            xdot = wheel_angular_velocity * 0.03
+            x = wheel_angular_position #* 0.03
+            xdot = wheel_angular_velocity #* 0.03
 
             # Use GT readings
             # controller.step(angle, d.sensor('base_position'), d.sensor('base_velocity'), d.sensor('base_ang_velocity'))
@@ -363,8 +394,9 @@ with mujoco.viewer.launch_passive(m, d) as viewer:
 
 
         # Terminate episode if max angle exceeded
-        if abs(angle) > 80.0*np.pi/180.0:
-            print("80 deg angle exceeded. Terminating...")
+        max_angle_threshold_deg = 50.0
+        if abs(angle) > max_angle_threshold_deg*np.pi/180.0:
+            print(f"{max_angle_threshold_deg} deg angle exceeded. Terminating...")
             break
 
         times_dbg     = np.append(times_dbg, d.time)

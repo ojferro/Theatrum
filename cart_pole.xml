@@ -19,6 +19,9 @@
 
   <asset>
     <mesh file="Basis_m.stl"/>
+    <mesh file="ODrive_m.stl"/>
+    <mesh file="Nucleo_m.stl"/>
+    <mesh file="Battery_m.stl"/>
   </asset>
 
   <visual>
@@ -43,14 +46,14 @@
 
   <worldbody>
     <geom type="plane" size="50 50 .01" material="grid"/>
-    <body name="pendulum" pos="0.25 0 .03" euler="0 0 0">
+    <body name="pendulum" pos="0 0 0" euler="0 0 0">
 
         <freejoint/>
         
         <!-- <geom name="bodygeom" type="box" pos="0 0 0.25" size=".05 .05 .05" mass="1.5" rgba="0.9 0.9 0.9 0.1"/> -->
         
         <site name="wheelbase" pos="0 0 0"/>
-        <geom name="wheelbase_viz" type="box" pos="0 0 0" size=".01 .01 .01" mass="0.001" rgba="0.0 1.0 0.0 1.0"/>
+        <geom name="CoMViz" type="box" pos="-0.0055 0 0.24" size=".001 .001 .001" mass="0.0001" rgba="0.0 1.0 0.0 1.0"/>
 
         <site name="accel_site" pos="0 0 0.37"/>
         <geom name="accel" type="box" pos="0 0 0.37" size=".01 .01 .01" mass="0" rgba="0.0 1.0 0.0 1.0"/>
@@ -73,6 +76,9 @@
         <body name="beam" pos="0 0 0.25">
             <!-- <geom name="rod" type="cylinder" pos="0 0 -0.125" size=".01 .125" mass="0.1" rgba ="0.9 0.9 0.9 0.1"/> -->
             <geom type="mesh" mesh="Basis_m" pos="0 0 0.033" size="0.01 0.01 0.01" euler="90 90 0" mass="0.810"/>
+            <!-- <geom type="mesh" mesh="Nucleo_m" pos="-0.05 0 0.11" size="0.01 0.01 0.01" euler="90 180 0" mass="0.50"/>
+            <geom type="mesh" mesh="ODrive_m" pos="0.04 -0.07 0.01" size="0.01 0.01 0.01" euler="0 0 90" mass="0.120"/> -->
+            <!-- <geom type="mesh" mesh="Battery_m" pos="0 0 0.033" size="0.01 0.01 0.01" euler="90 90 0" mass="0.810"/> -->
         </body>
       
     </body>
